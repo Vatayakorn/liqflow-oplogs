@@ -72,6 +72,7 @@ export interface OtcTransaction {
     timestamp?: string;
     status?: string;
     total?: number;
+    txnType?: string;
 }
 
 export interface ExchangeComparison {

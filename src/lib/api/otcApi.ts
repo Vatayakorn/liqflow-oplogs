@@ -59,6 +59,7 @@ function mapApiTransaction(apiTx: ApiOTCTransaction): OtcTransaction {
         timestamp: apiTx.transaction_date,
         status: apiTx.status,
         total: typeof apiTx.total === 'string' ? parseFloat(apiTx.total) : apiTx.total,
+        txnType: apiTx.txn_type,
     };
 }
 

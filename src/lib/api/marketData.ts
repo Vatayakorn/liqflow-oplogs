@@ -75,27 +75,15 @@ export async function fetchFxRate(): Promise<FxRate> {
 }
 
 /**
- * Fetch BTZ (MaxBit) broker prices
+ * Fetch BTZ (MaxBit) broker prices via local proxy
  */
 export async function fetchMaxbitPrice(symbol = 'usdt'): Promise<BrokerPrice> {
     try {
-        const response = await fetch(ENDPOINTS.maxbit, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'secret-api': MAXBIT_CONFIG.secretApi,
-                'secret-key': MAXBIT_CONFIG.secretKey,
-            },
-            body: JSON.stringify({
-                groupid: MAXBIT_CONFIG.groupId,
-                symbol,
-            }),
-        });
-
+        const response = await fetch(`/api/market/maxbit?symbol=${symbol}`);
         const data = await response.json();
 
-        if (data.responseCode !== '000') {
-            throw new Error(data.responseMessage || 'Failed to fetch MaxBit price');
+        if (data.error) {
+            throw new Error(data.error);
         }
 
         return {

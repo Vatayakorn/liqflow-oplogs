@@ -70,6 +70,22 @@
     // === OTC ===
     let otcTransactions: OtcTransaction[] = [];
     let fetchedOtcTransactions: OtcTransaction[] = []; // Transactions from API
+    let filterType = "ALL"; // 'ALL', 'otc', 'commission'
+    let searchQuery = "";
+
+    $: filteredOtcTransactions = fetchedOtcTransactions.filter((tx) => {
+        const typeMatch =
+            filterType === "ALL" ||
+            (filterType === "otc" && tx.txnType === "otc") ||
+            (filterType === "commission" && tx.txnType === "commission");
+
+        const searchMatch =
+            tx.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            tx.id.toLowerCase().includes(searchQuery.toLowerCase());
+
+        return typeMatch && searchMatch;
+    });
+
     let prefundCurrent = 0;
     let prefundTarget = PREFUND_DEFAULTS.target;
     let matchingNotes = "";
@@ -653,8 +669,52 @@
                         >📋 วันนี้ ({fetchedOtcTransactions.length} รายการ)</span
                     >
                 </div>
+
+                <div class="fetched-controls">
+                    <div class="filter-group">
+                        <button
+                            type="button"
+                            class="filter-btn"
+                            class:active={filterType === "ALL"}
+                            on:click={() => (filterType = "ALL")}>All</button
+                        >
+                        <button
+                            type="button"
+                            class="filter-btn"
+                            class:active={filterType === "otc"}
+                            on:click={() => (filterType = "otc")}>OTC</button
+                        >
+                        <button
+                            type="button"
+                            class="filter-btn"
+                            class:active={filterType === "commission"}
+                            on:click={() => (filterType = "commission")}
+                            >COMS</button
+                        >
+                    </div>
+
+                    <div class="search-box">
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                        >
+                            <circle cx="11" cy="11" r="8" /><path
+                                d="m21 21-4.35-4.35"
+                            />
+                        </svg>
+                        <input
+                            type="text"
+                            placeholder="Search names..."
+                            bind:value={searchQuery}
+                            disabled={disabled || isSubmitting}
+                        />
+                    </div>
+                </div>
+
                 <div class="fetched-orders-list">
-                    {#each fetchedOtcTransactions as tx (tx.id)}
+                    {#each filteredOtcTransactions as tx (tx.id)}
                         <div
                             class="order-card"
                             class:buy={tx.action === "BUY"}
@@ -696,12 +756,6 @@
                 </div>
             </div>
         {/if}
-
-        <OtcTransactionInput
-            bind:transactions={otcTransactions}
-            on:change={handleOtcChange}
-            disabled={disabled || isSubmitting}
-        />
 
         <div class="prefund-section">
             <div class="prefund-inputs">
@@ -1320,5 +1374,74 @@
     .order-status.pending {
         color: #ff9500;
         background: rgba(255, 149, 0, 0.15);
+    }
+
+    /* Filter & Search Controls */
+    .fetched-controls {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    .filter-group {
+        display: flex;
+        background: var(--color-bg-tertiary);
+        padding: 2px;
+        border-radius: 8px;
+        gap: 2px;
+    }
+
+    .filter-btn {
+        padding: 0.375rem 0.75rem;
+        font-size: 0.6875rem;
+        font-weight: 600;
+        border: none;
+        background: transparent;
+        color: var(--color-text-secondary);
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .filter-btn.active {
+        background: var(--color-bg);
+        color: var(--color-primary);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+
+    .search-box {
+        position: relative;
+        flex: 1;
+        min-width: 140px;
+    }
+
+    .search-box svg {
+        position: absolute;
+        left: 0.625rem;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 0.875rem;
+        height: 0.875rem;
+        color: var(--color-text-tertiary);
+    }
+
+    .search-box input {
+        width: 100%;
+        padding: 0.4375rem 0.75rem 0.4375rem 2rem;
+        font-size: 0.8125rem;
+        background: var(--color-bg-secondary);
+        border: 1px solid var(--color-border);
+        border-radius: 8px;
+        color: var(--color-text);
+        transition: all 0.2s;
+    }
+
+    .search-box input:focus {
+        outline: none;
+        border-color: var(--color-primary);
+        background: var(--color-bg);
+        box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
     }
 </style>
