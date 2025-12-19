@@ -46,7 +46,7 @@ export interface OplogSessionImage {
 
 export interface CreateSessionPayload {
     log_date: string;
-    shift: 'A' | 'B' | 'C';
+    shift?: 'A' | 'B' | 'C';
     preset_key?: string;
     start_time: string;
     end_time?: string;

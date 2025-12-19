@@ -1,0 +1,90 @@
+/**
+ * Trading Configuration
+ * Dropdown options and defaults for trading operation logs
+ */
+
+// Team Members (for Broker, Trader, Head, Recorder dropdowns)
+export const TEAM_MEMBERS = [
+    { value: 'NAME', label: 'NAME' },
+    { value: 'WIM', label: 'WIM' },
+    { value: 'YEE', label: 'YEE' },
+    { value: 'TAN', label: 'TAN' },
+    { value: 'ORM', label: 'ORM' },
+    { value: 'BIRD', label: 'BIRD' },
+    { value: 'FOURWHEEL', label: 'FOURWHEEL' },
+] as const;
+
+// OTC Customer Sources
+export const OTC_SOURCES = [
+    { value: 'BTZ', label: 'BTZ' },
+    { value: 'BTZ RFQ', label: 'BTZ RFQ' },
+    { value: 'MB RFQ', label: 'MB RFQ' },
+    { value: 'Maxbit', label: 'Maxbit' },
+    { value: 'Other', label: 'Other' },
+] as const;
+
+// Exchange Options (Bitkub and BinanceTH only)
+export const EXCHANGES = [
+    { value: 'BTH', label: 'Bitkub' },
+    { value: 'BinanceTH', label: 'Binance TH' },
+] as const;
+
+// Broker Options
+export const BROKERS = [
+    { value: 'BTZ', label: 'BTZ (Maxbit)' },
+] as const;
+
+// Transaction Actions
+export const OTC_ACTIONS = [
+    { value: 'BUY', label: 'Buy', color: '#34C759' },
+    { value: 'SELL', label: 'Sell', color: '#FF3B30' },
+] as const;
+
+// Prefund Defaults
+export const PREFUND_DEFAULTS = {
+    target: 760000, // 760K USDT
+    currency: 'USDT',
+};
+
+// Market Status Options
+export const MARKET_STATUS = [
+    { value: 'normal', label: 'Normal' },
+    { value: 'volatile', label: 'Volatile' },
+    { value: 'sideways', label: 'Sideways' },
+    { value: 'uptrend', label: 'Uptrend' },
+    { value: 'downtrend', label: 'Downtrend' },
+] as const;
+
+// Trading Status
+export const TRADING_STATUS = [
+    { value: 'can_trade', label: 'ซื้อขายได้', icon: '🟢' },
+    { value: 'cannot_trade', label: 'ซื้อขายไม่ได้', icon: '🔴' },
+    { value: 'partial', label: 'ได้บางส่วน', icon: '🟡' },
+] as const;
+
+// Types
+export type OtcSource = typeof OTC_SOURCES[number]['value'];
+export type Exchange = typeof EXCHANGES[number]['value'];
+export type OtcAction = typeof OTC_ACTIONS[number]['value'];
+export type MarketStatus = typeof MARKET_STATUS[number]['value'];
+export type TradingStatus = typeof TRADING_STATUS[number]['value'];
+
+export interface OtcTransaction {
+    id: string;
+    source: OtcSource;
+    customerName: string;
+    action: OtcAction;
+    amount: number;
+    currency: 'USDT' | 'USDC' | 'THB';
+    rate: number;
+    timestamp?: string;
+}
+
+export interface ExchangeComparison {
+    exchange1: Exchange;
+    exchange1Price: string;
+    exchange2: Exchange;
+    exchange2Price: string;
+    diff: string;
+    higherExchange: Exchange | null;
+}

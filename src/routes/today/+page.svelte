@@ -4,8 +4,6 @@
      * Main operation log entry page
      */
     import { onMount } from "svelte";
-    import ShiftSelector from "$lib/components/ShiftSelector.svelte";
-    import PresetGrid from "$lib/components/PresetGrid.svelte";
     import SessionForm from "$lib/components/SessionForm.svelte";
     import SessionList from "$lib/components/SessionList.svelte";
     import {
@@ -16,16 +14,11 @@
         type OplogSession,
     } from "$lib/api/oplog";
     import { toast } from "$lib/stores/toast";
-    import type { PresetMode } from "$lib/config/timePresets";
     import { goto } from "$app/navigation";
     import { isSupabaseConfigured } from "$lib/supabaseClient";
 
     // State
     let selectedDate = new Date().toISOString().split("T")[0];
-    let shift: "A" | "B" | "C" = "A";
-    let presetMode: PresetMode = "fixed";
-    let selectedPresetKey: string | null = null;
-    let startTime = "";
     let sessions: OplogSession[] = [];
     let isLoading = true;
     let isSaving = false;
@@ -58,48 +51,28 @@
         }
     }
 
-    function handlePresetSelect(
-        event: CustomEvent<{ key: string; time: string }>,
-    ) {
-        selectedPresetKey = event.detail.key;
-        startTime = event.detail.time;
-    }
-
-    function handlePresetModeChange(event: CustomEvent<PresetMode>) {
-        presetMode = event.detail;
-        selectedPresetKey = null;
-        startTime = "";
-    }
-
     async function handleFormSubmit(event: CustomEvent) {
         const formData = event.detail;
         isSaving = true;
 
         try {
-            // Create session
+            // Create session with new structure
             const session = await createSession({
                 log_date: selectedDate,
-                shift: formData.shift,
-                preset_key: formData.preset_key,
                 start_time: formData.start_time,
                 end_time: formData.end_time || undefined,
                 broker: formData.broker,
                 trader: formData.trader,
                 head: formData.head,
-                market_mode: formData.market_mode || undefined,
-                inventory_status: formData.inventory_status || undefined,
-                risk_flag: formData.risk_flag || undefined,
-                execution_issue: formData.execution_issue || undefined,
-                pnl_snapshot: formData.pnl_snapshot,
-                action_taken: formData.action_taken || undefined,
                 note: formData.note,
+                // Extended fields handled separately for now
             });
 
             // Upload images if any
             if (formData.images && formData.images.length > 0) {
                 await uploadImages(
                     selectedDate,
-                    formData.shift,
+                    "A", // Default shift
                     session.id,
                     formData.images,
                 );
@@ -109,8 +82,6 @@
 
             // Reset form
             sessionFormRef?.reset();
-            selectedPresetKey = null;
-            startTime = "";
 
             // Reload sessions
             await loadSessions();
@@ -186,26 +157,10 @@ PUBLIC_SUPABASE_ANON_KEY=your-anon-key</pre>
     {/if}
 
     <div class="content-grid">
-        <section class="form-section card">
+        <section class="form-section">
             <h2>New Session</h2>
-
-            <div class="form-controls">
-                <ShiftSelector bind:value={shift} disabled={isSaving} />
-
-                <PresetGrid
-                    mode={presetMode}
-                    selectedKey={selectedPresetKey}
-                    disabled={isSaving}
-                    on:select={handlePresetSelect}
-                    on:modeChange={handlePresetModeChange}
-                />
-            </div>
-
             <SessionForm
                 bind:this={sessionFormRef}
-                {shift}
-                presetKey={selectedPresetKey}
-                {startTime}
                 disabled={isSaving}
                 on:submit={handleFormSubmit}
             />
