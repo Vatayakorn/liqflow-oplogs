@@ -14,6 +14,13 @@ export const TEAM_MEMBERS = [
     { value: 'FOURWHEEL', label: 'FOURWHEEL' },
 ] as const;
 
+// Session Shifts
+export const SHIFTS = [
+    { value: 'A', label: 'Session A', start: '06:00', end: '15:00' },
+    { value: 'B', label: 'Session B', start: '14:00', end: '23:00' },
+    { value: 'C', label: 'Session C', start: '22:00', end: '07:00' },
+] as const;
+
 // OTC Customer Sources
 export const OTC_SOURCES = [
     { value: 'BTZ', label: 'BTZ' },

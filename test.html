@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Chart with Real Data</title>
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        .chart { height: 400px; border: 1px solid #ccc; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Real Data Test</h1>
+    <div id="chart-container" class="chart"></div>
+    <script>
+        const data = [{"time":1766164901,"value":31.433396,"source":"fx"},{"time":1766164901,"value":null,"source":"bitkub"},{"time":1766164902,"value":null,"source":"bitkub"},{"time":1766164902,"value":null,"source":"binance_th"},{"time":1766164902,"value":null,"source":"maxbit"},{"time":1766164902,"value":31.433396,"source":"fx"},{"time":1766164904,"value":null,"source":"bitkub"},{"time":1766164904,"value":null,"source":"maxbit"},{"time":1766164904,"value":null,"source":"binance_th"},{"time":1766164904,"value":31.433396,"source":"fx"},{"time":1766164905,"value":31.433396,"source":"fx"},{"time":1766164905,"value":null,"source":"binance_th"},{"time":1766164905,"value":null,"source":"maxbit"},{"time":1766164905,"value":null,"source":"bitkub"},{"time":1766164906,"value":null,"source":"bitkub"},{"time":1766164906,"value":null,"source":"binance_th"},{"time":1766164906,"value":31.433396,"source":"fx"},{"time":1766164906,"value":null,"source":"maxbit"},{"time":1766164907,"value":null,"source":"maxbit"},{"time":1766164907,"value":31.433396,"source":"fx"},{"time":1766164907,"value":null,"source":"bitkub"},{"time":1766164907,"value":null,"source":"binance_th"},{"time":1766164908,"value":null,"source":"maxbit"},{"time":1766164908,"value":null,"source":"bitkub"},{"time":1766164908,"value":31.433396,"source":"fx"},{"time":1766164908,"value":null,"source":"binance_th"},{"time":1766164909,"value":null,"source":"maxbit"},{"time":1766164909,"value":31.433396,"source":"fx"},{"time":1766164909,"value":null,"source":"bitkub"},{"time":1766164909,"value":null,"source":"binance_th"},{"time":1766164910,"value":null,"source":"bitkub"},{"time":1766164910,"value":31.433396,"source":"fx"},{"time":1766164910,"value":null,"source":"binance_th"},{"time":1766164910,"value":null,"source":"maxbit"},{"time":1766164912,"value":31.433396,"source":"fx"},{"time":1766164912,"value":null,"source":"binance_th"},{"time":1766164912,"value":null,"source":"maxbit"},{"time":1766164912,"value":null,"source":"bitkub"},{"time":1766164913,"value":31.433396,"source":"fx"},{"time":1766164913,"value":null,"source":"binance_th"},{"time":1766164913,"value":null,"source":"bitkub"},{"time":1766164913,"value":null,"source":"maxbit"},{"time":1766164913,"value":null,"source":"bitkub"},{"time":1766164913,"value":31.433396,"source":"fx"},{"time":1766164913,"value":null,"source":"binance_th"},{"time":1766164913,"value":null,"source":"maxbit"},{"time":1766164915,"value":null,"source":"bitkub"},{"time":1766164915,"value":null,"source":"maxbit"},{"time":1766164915,"value":null,"source":"binance_th"},{"time":1766164915,"value":31.433396,"source":"fx"}];
+        
+        // Filter sources
+        const sources = [...new Set(data.map(d => d.source))];
+        console.log("Sources:", sources);
+        
+        const chart = LightweightCharts.createChart(document.getElementById("chart-container"), {
+            layout: { textColor: "#333", background: { type: "solid", color: "white" } },
+            timeScale: { timeVisible: true, secondsVisible: true }
+        });
+        
+        // Colors
+        const colors = {
+            bitkub: "#27AE60",
+            binance_th: "#F3BA2F", 
+            maxbit: "#E53935",
+            fx: "#2962FF"
+        };
+        
+        sources.forEach(source => {
+            const sourceData = data.filter(d => d.source === source);
+            if(sourceData.length > 0) {
+                const series = chart.addAreaSeries({
+                     topColor: colors[source] || "rgba(33, 150, 243, 0.56)",
+                     bottomColor: "rgba(33, 150, 243, 0.04)",
+                     lineColor: colors[source] || "rgba(33, 150, 243, 1)",
+                     lineWidth: 2,
+                });
+                series.setData(sourceData);
+            }
+        });
+        
+        chart.timeScale().fitContent();
+    </script>
+</body>
+</html>

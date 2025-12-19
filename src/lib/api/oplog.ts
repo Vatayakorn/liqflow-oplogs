@@ -5,6 +5,8 @@
 
 import { supabase, STORAGE_BUCKET } from '$lib/supabaseClient';
 
+export const AUDIO_BUCKET = 'oplog-audio';
+
 // ============================================
 // Types
 // ============================================
@@ -53,6 +55,7 @@ export interface OplogSession {
     note: string;
     created_at: string;
     images?: OplogSessionImage[];
+    audio?: OplogSessionAudio[];
 }
 
 export interface OplogSessionImage {
@@ -60,6 +63,16 @@ export interface OplogSessionImage {
     session_id: string;
     storage_path: string;
     public_url: string;
+    created_at: string;
+}
+
+export interface OplogSessionAudio {
+    id: string;
+    session_id: string;
+    storage_path: string;
+    public_url: string;
+    duration_seconds: number | null;
+    transcript: string | null;
     created_at: string;
 }
 
@@ -185,7 +198,8 @@ export async function listSessionsByDate(log_date: string): Promise<OplogSession
         .from('oplog_sessions')
         .select(`
       *,
-      images:oplog_session_images(*)
+      images:oplog_session_images(*),
+      audio:oplog_session_audio(*)
     `)
         .eq('day_id', day.id)
         .order('shift', { ascending: true })
@@ -236,7 +250,8 @@ export async function getSession(session_id: string): Promise<OplogSession | nul
         .from('oplog_sessions')
         .select(`
       *,
-      images:oplog_session_images(*)
+      images:oplog_session_images(*),
+      audio:oplog_session_audio(*)
     `)
         .eq('id', session_id)
         .single();
@@ -256,7 +271,7 @@ export async function deleteSession(session_id: string): Promise<void> {
     // First get the session to find associated images
     const { data: session } = await supabase
         .from('oplog_sessions')
-        .select('*, images:oplog_session_images(*)')
+        .select('*, images:oplog_session_images(*), audio:oplog_session_audio(*)')
         .eq('id', session_id)
         .single();
 
@@ -265,6 +280,14 @@ export async function deleteSession(session_id: string): Promise<void> {
         const paths = session.images.map((img: OplogSessionImage) => img.storage_path);
         if (paths.length > 0) {
             await supabase.storage.from(STORAGE_BUCKET).remove(paths);
+        }
+    }
+
+    if (session?.audio) {
+        // Delete audio from storage
+        const audioPaths = session.audio.map((aud: OplogSessionAudio) => aud.storage_path);
+        if (audioPaths.length > 0) {
+            await supabase.storage.from(AUDIO_BUCKET).remove(audioPaths);
         }
     }
 
@@ -380,6 +403,108 @@ export async function deleteImage(image_id: string): Promise<void> {
 
     if (error) {
         throw new Error(`Failed to delete image: ${error.message}`);
+    }
+}
+
+/**
+ * Upload audio files for a session
+ * @param log_date - Date string for path organization
+ * @param shift - Shift letter (A/B/C)
+ * @param session_id - Session UUID
+ * @param files - Array of File objects to upload
+ * @returns Array of created audio records
+ */
+export async function uploadAudio(
+    log_date: string,
+    shift: string,
+    session_id: string,
+    files: File[]
+): Promise<OplogSessionAudio[]> {
+    const uploadedAudio: OplogSessionAudio[] = [];
+
+    for (const file of files) {
+        // Generate unique filename
+        const timestamp = Date.now();
+        const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const path = `${log_date}/${shift}/${session_id}/${timestamp}_${safeName}`;
+
+        // Upload to storage
+        console.log(`Uploading audio to path: ${path} in bucket: ${AUDIO_BUCKET}`);
+
+        const { data: uploadData, error: uploadError } = await supabase.storage
+            .from(AUDIO_BUCKET)
+            .upload(path, file, {
+                cacheControl: '3600',
+                upsert: false,
+                contentType: file.type // Ensure content type is set (e.g. audio/webm)
+            });
+
+        if (uploadError) {
+            console.error(`❌ Failed to upload audio ${file.name}:`, {
+                message: uploadError.message,
+                name: uploadError.name,
+                cause: uploadError.cause,
+                bucket: AUDIO_BUCKET,
+                path: path
+            });
+            continue;
+        }
+
+        console.log(`✅ Successfully uploaded audio ${file.name} to storage:`, uploadData);
+
+        // Get public URL
+        const { data: urlData } = supabase.storage
+            .from(AUDIO_BUCKET)
+            .getPublicUrl(path);
+
+        // Insert audiorecord
+        const { data: audioRecord, error: insertError } = await supabase
+            .from('oplog_session_audio')
+            .insert({
+                session_id,
+                storage_path: path,
+                public_url: urlData.publicUrl,
+                duration_seconds: null // We could pass this if we had it
+            })
+            .select()
+            .single();
+
+        if (insertError) {
+            console.error(`Failed to insert audio record:`, insertError);
+            continue;
+        }
+
+        uploadedAudio.push(audioRecord);
+    }
+
+    return uploadedAudio;
+}
+
+/**
+ * Delete a single audio file
+ * @param audio_id - Audio UUID
+ */
+export async function deleteAudio(audio_id: string): Promise<void> {
+    // Get the audio to find storage path
+    const { data: audio } = await supabase
+        .from('oplog_session_audio')
+        .select('storage_path')
+        .eq('id', audio_id)
+        .single();
+
+    if (audio) {
+        // Delete from storage
+        await supabase.storage.from(AUDIO_BUCKET).remove([audio.storage_path]);
+    }
+
+    // Delete record
+    const { error } = await supabase
+        .from('oplog_session_audio')
+        .delete()
+        .eq('id', audio_id);
+
+    if (error) {
+        throw new Error(`Failed to delete audio: ${error.message}`);
     }
 }
 

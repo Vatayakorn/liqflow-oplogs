@@ -7,13 +7,14 @@
     import CollapsibleSection from "./CollapsibleSection.svelte";
     import OtcTransactionInput from "./OtcTransactionInput.svelte";
     import PrefundTracker from "./PrefundTracker.svelte";
-    import DictationButton from "./DictationButton.svelte";
+    import AudioRecorder from "./AudioRecorder.svelte";
     import ImageUpload from "./ImageUpload.svelte";
     import { addMinutes } from "$lib/config/timePresets";
     import {
         EXCHANGES,
         PREFUND_DEFAULTS,
         TEAM_MEMBERS,
+        SHIFTS,
         type OtcTransaction,
     } from "$lib/config/tradingConfig";
     import {
@@ -32,8 +33,18 @@
     const dispatch = createEventDispatcher();
 
     // === Time Slot ===
+    let shift = ""; // A, B, C
     let startTime = "";
     let endTime = "";
+
+    function handleShiftChange() {
+        if (!shift) return;
+        const selectedShift = SHIFTS.find((s) => s.value === shift);
+        if (selectedShift) {
+            startTime = selectedShift.start;
+            endTime = selectedShift.end;
+        }
+    }
 
     // === Team ===
     let broker = "";
@@ -74,7 +85,29 @@
     let filterType = "ALL"; // 'ALL', 'otc', 'commission'
     let searchQuery = "";
 
-    $: filteredOtcTransactions = fetchedOtcTransactions.filter((tx) => {
+    // Scope Filter: Filter by Time Slot
+    $: timeFilteredOtcTransactions = fetchedOtcTransactions.filter((tx) => {
+        if (!startTime || !endTime || !tx.timestamp) return true;
+
+        const txDate = new Date(tx.timestamp);
+        const txMinutes = txDate.getHours() * 60 + txDate.getMinutes();
+
+        const [startH, startM] = startTime.split(":").map(Number);
+        const startMinutes = startH * 60 + startM;
+
+        const [endH, endM] = endTime.split(":").map(Number);
+        const endMinutes = endH * 60 + endM;
+
+        if (startMinutes <= endMinutes) {
+            return txMinutes >= startMinutes && txMinutes <= endMinutes;
+        } else {
+            // Cross-midnight (e.g., 22:00 - 07:00)
+            return txMinutes >= startMinutes || txMinutes <= endMinutes;
+        }
+    });
+
+    // View Filter: Search and Type
+    $: filteredOtcTransactions = timeFilteredOtcTransactions.filter((tx) => {
         const typeMatch =
             filterType === "ALL" ||
             (filterType === "otc" && tx.txnType === "otc") ||
@@ -94,13 +127,15 @@
     let isFetchingOtc = false;
 
     // === General ===
+    // === General ===
     let generalNotes = "";
     let images: File[] = [];
+    let audioFiles: File[] = []; // Audio recordings
 
     let isSubmitting = false;
 
-    // Auto-fill end time
-    $: if (startTime && !endTime) {
+    // Auto-fill end time (Only if shift is NOT selected, manual override)
+    $: if (startTime && !endTime && !shift) {
         endTime = addMinutes(startTime, 30);
     }
 
@@ -171,8 +206,51 @@
         }
     }
 
-    function handleDictation(event: CustomEvent<string>) {
-        generalNotes += (generalNotes ? " " : "") + event.detail;
+    function handleAudioChange(event: CustomEvent<File[]>) {
+        audioFiles = event.detail;
+    }
+
+    async function handleTranscribe(event: CustomEvent<File>) {
+        const audioFile = event.detail;
+        if (!audioFile) return;
+
+        try {
+            const formData = new FormData();
+            formData.append("file", audioFile);
+
+            const timestamp = new Date().toLocaleTimeString();
+            generalNotes +=
+                (generalNotes ? "\n\n" : "") + `[Transcribing ${timestamp}...]`;
+
+            const response = await fetch("/api/transcribe", {
+                method: "POST",
+                body: formData,
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || "Transcription failed");
+            }
+
+            const data = await response.json();
+            const transcription = data.text;
+
+            // Replace the "Transcribing..." placeholder or append real text
+            generalNotes = generalNotes.replace(
+                `[Transcribing ${timestamp}...]`,
+                `[Transcribed at ${timestamp}]:\n${transcription}`,
+            );
+        } catch (error) {
+            console.error("Transcription error:", error);
+            alert(
+                `Transcription failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+            );
+            const timestamp = new Date().toLocaleTimeString();
+            generalNotes = generalNotes.replace(
+                `[Transcribing ${timestamp}...]`,
+                `[Transcription Failed at ${timestamp}]`,
+            );
+        }
     }
 
     function handleOtcChange(event: CustomEvent<OtcTransaction[]>) {
@@ -285,16 +363,20 @@
                 // OTC
                 otc_transactions: [
                     ...otcTransactions,
-                    ...fetchedOtcTransactions,
+                    ...timeFilteredOtcTransactions,
                 ],
                 prefund_current: prefundCurrent,
                 prefund_target: prefundTarget,
                 matching_notes: matchingNotes,
                 otc_notes: otcNotes,
                 // General
+                // General
+                // General
                 note: generalNotes,
                 images,
+                audio: audioFiles,
                 // Context
+                shift, // Pass shift explicitly
                 market_context: marketContext,
             });
         } catch (error) {
@@ -308,6 +390,7 @@
     }
 
     export function reset() {
+        shift = "";
         startTime = "";
         endTime = "";
         broker = "";
@@ -331,7 +414,9 @@
         matchingNotes = "";
         otcNotes = "";
         generalNotes = "";
+        generalNotes = "";
         images = [];
+        audioFiles = [];
     }
 </script>
 
@@ -343,6 +428,20 @@
             <span class="card-title">Time Slot</span>
         </div>
         <div class="time-row">
+            <div class="field" style="max-width: 120px;">
+                <label for="shift">Shift</label>
+                <select
+                    id="shift"
+                    bind:value={shift}
+                    on:change={handleShiftChange}
+                    disabled={disabled || isSubmitting}
+                >
+                    <option value="">Manual</option>
+                    {#each SHIFTS as s}
+                        <option value={s.value}>{s.label}</option>
+                    {/each}
+                </select>
+            </div>
             <div class="field">
                 <label for="start-time">Start *</label>
                 <input
@@ -682,7 +781,7 @@
             <div class="fetched-orders">
                 <div class="fetched-orders-header">
                     <span
-                        >📋 วันนี้ ({fetchedOtcTransactions.length} รายการ)</span
+                        >📋 วันนี้ ({timeFilteredOtcTransactions.length} รายการ)</span
                     >
                 </div>
 
@@ -808,6 +907,22 @@
         </div>
     </CollapsibleSection>
 
+    <!-- Audio Evidence -->
+    <div class="form-card">
+        <div class="card-header">
+            <span class="card-icon">🎙️</span>
+            <span class="card-title">Audio Evidence</span>
+            {#if audioFiles.length > 0}
+                <span class="photo-count">{audioFiles.length}</span>
+            {/if}
+        </div>
+        <AudioRecorder
+            on:change={handleAudioChange}
+            on:transcribe={handleTranscribe}
+            disabled={disabled || isSubmitting}
+        />
+    </div>
+
     <!-- General Notes -->
     <div class="form-card">
         <div class="card-header">
@@ -821,12 +936,6 @@
                 rows="4"
                 disabled={disabled || isSubmitting}
             ></textarea>
-            <div class="dictation-row">
-                <DictationButton
-                    on:result={handleDictation}
-                    disabled={disabled || isSubmitting}
-                />
-            </div>
         </div>
     </div>
 
@@ -1459,5 +1568,32 @@
         border-color: var(--color-primary);
         background: var(--color-bg);
         box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+    }
+
+    .transcribe-btn {
+        margin-left: auto;
+        padding: 0.375rem 0.75rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--color-primary);
+        background: rgba(0, 122, 255, 0.1);
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .transcribe-btn:hover:not(:disabled) {
+        background: rgba(0, 122, 255, 0.2);
+    }
+
+    .transcribe-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        background: rgba(0, 0, 0, 0.05);
+        color: var(--color-text-tertiary);
     }
 </style>

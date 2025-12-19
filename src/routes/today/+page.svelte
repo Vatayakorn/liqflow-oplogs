@@ -10,6 +10,7 @@
         listSessionsByDate,
         createSession,
         uploadImages,
+        uploadAudio, // Added
         deleteSession,
         type OplogSession,
     } from "$lib/api/oplog";
@@ -59,6 +60,7 @@
             // Create session with new structure
             const session = await createSession({
                 log_date: selectedDate,
+                shift: formData.shift || "A", // Added shift with fallback
                 start_time: formData.start_time,
                 end_time: formData.end_time || undefined,
                 broker: formData.broker,
@@ -92,9 +94,19 @@
             if (formData.images && formData.images.length > 0) {
                 await uploadImages(
                     selectedDate,
-                    "A", // Default shift
+                    formData.shift || "A", // Use selected shift or default to A
                     session.id,
                     formData.images,
+                );
+            }
+
+            // Upload audio if any
+            if (formData.audio && formData.audio.length > 0) {
+                await uploadAudio(
+                    selectedDate,
+                    formData.shift || "A", // Use selected shift or default to A
+                    session.id,
+                    formData.audio,
                 );
             }
 

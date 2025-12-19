@@ -51,7 +51,7 @@ MAXBIT_CONFIG = {
 
 def fetch_bitkub():
     try:
-        response = requests.get(ENDPOINTS['bitkub'], timeout=2)
+        response = requests.get(ENDPOINTS['bitkub'], timeout=5)
         data = response.json()
         if data and 'bids' in data and 'asks' in data:
             # Bitkub format: [[price, volume], ...]
@@ -62,10 +62,13 @@ def fetch_bitkub():
             best_bid = bids[0][0] if bids else None
             best_ask = asks[0][0] if asks else None
             
+            # Use mid-price as the main price for charting
+            price = (best_bid + best_ask) / 2 if (best_bid and best_ask) else None
+            
             return {
                 'source': 'bitkub',
                 'symbol': 'THB_USDT',
-                'price': None,
+                'price': price,
                 'bid': best_bid,
                 'ask': best_ask,
                 'order_book': {
@@ -80,7 +83,7 @@ def fetch_bitkub():
 
 def fetch_binance_th():
     try:
-        response = requests.get(ENDPOINTS['binance_th'], timeout=2)
+        response = requests.get(ENDPOINTS['binance_th'], timeout=5)
         data = response.json()
         if 'bids' in data and 'asks' in data:
             # BinanceTH format: [[price, volume], ...]
@@ -91,10 +94,13 @@ def fetch_binance_th():
             best_bid = bids[0][0] if bids else None
             best_ask = asks[0][0] if asks else None
             
+            # Use mid-price
+            price = (best_bid + best_ask) / 2 if (best_bid and best_ask) else None
+            
             return {
                 'source': 'binance_th',
                 'symbol': 'USDTTHB',
-                'price': None,
+                'price': price,
                 'bid': best_bid,
                 'ask': best_ask,
                 'order_book': {
@@ -113,17 +119,21 @@ def fetch_maxbit():
             MAXBIT_CONFIG['url'],
             headers=MAXBIT_CONFIG['headers'],
             json=MAXBIT_CONFIG['body'],
-            timeout=2
+            timeout=5
         )
         data = response.json()
         if data.get('responseCode') == '000' and 'result' in data:
             res = data['result']
+            bid = float(res['bid'])
+            ask = float(res['ask'])
+            price = (bid + ask) / 2
+            
             return {
                 'source': 'maxbit',
                 'symbol': 'USDT',
-                'price': None,
-                'bid': float(res['bid']),
-                'ask': float(res['ask']),
+                'price': price,
+                'bid': bid,
+                'ask': ask,
                 'order_book': None,
                 'raw_data': data
             }
@@ -133,7 +143,7 @@ def fetch_maxbit():
 
 def fetch_fx():
     try:
-        response = requests.get(ENDPOINTS['fx'], timeout=2)
+        response = requests.get(ENDPOINTS['fx'], timeout=5)
         data = response.json()
         if 'rates' in data and 'THB' in data['rates']:
             rate = data['rates']['THB']
@@ -177,6 +187,10 @@ def main():
         if updates:
             try:
                 # Batch insert
+                # Debug print to see what we are inserting
+                for u in updates:
+                    print(f"DEBUG: Source={u['source']}, Price={u['price']}")
+                
                 supabase.table('market_data').insert(updates).execute()
                 print(f"[{datetime.now().strftime('%H:%M:%S')}] Inserted {len(updates)} records")
             except Exception as e:

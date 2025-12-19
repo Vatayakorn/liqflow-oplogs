@@ -258,3 +258,53 @@ CREATE POLICY "Public Delete"
 --     );
 --
 -- Similar policies for INSERT, UPDATE, DELETE with team-based access
+-- ============================================
+-- Audio Storage Bucket Configuration
+-- ============================================
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('oplog-audio', 'oplog-audio', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- READ Audio
+DROP POLICY IF EXISTS "Public Audio Access" ON storage.objects;
+CREATE POLICY "Public Audio Access"
+  ON storage.objects FOR SELECT
+  USING ( bucket_id = 'oplog-audio' );
+
+-- UPLOAD Audio
+DROP POLICY IF EXISTS "Public Audio Upload" ON storage.objects;
+CREATE POLICY "Public Audio Upload"
+  ON storage.objects FOR INSERT
+  WITH CHECK ( bucket_id = 'oplog-audio' );
+
+-- DELETE Audio
+DROP POLICY IF EXISTS "Public Audio Delete" ON storage.objects;
+CREATE POLICY "Public Audio Delete"
+  ON storage.objects FOR DELETE
+  USING ( bucket_id = 'oplog-audio' );
+
+
+-- ============================================
+-- Table: Audio Metadata
+-- ============================================
+CREATE TABLE IF NOT EXISTS oplog_session_audio (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    session_id UUID REFERENCES oplog_sessions(id) ON DELETE CASCADE,
+    storage_path TEXT NOT NULL,
+    public_url TEXT NOT NULL,
+    duration_seconds NUMERIC NULL,
+    transcript TEXT NULL
+);
+
+-- RLS
+ALTER TABLE oplog_session_audio ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow all read on oplog_session_audio" ON oplog_session_audio;
+CREATE POLICY "Allow all read on oplog_session_audio" ON oplog_session_audio FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Allow all insert on oplog_session_audio" ON oplog_session_audio;
+CREATE POLICY "Allow all insert on oplog_session_audio" ON oplog_session_audio FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all delete on oplog_session_audio" ON oplog_session_audio;
+CREATE POLICY "Allow all delete on oplog_session_audio" ON oplog_session_audio FOR DELETE USING (true);

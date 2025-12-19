@@ -1,10 +1,6 @@
 <script lang="ts">
-    /**
-     * Session Detail Page
-     * Full view of a single session with images
-     */
     import { page } from "$app/stores";
-    import { onMount } from "svelte";
+    import { onMount, tick } from "svelte";
     import {
         getSession,
         deleteSession,
@@ -13,12 +9,34 @@
     import { toast } from "$lib/stores/toast";
     import { goto } from "$app/navigation";
     import { isSupabaseConfigured } from "$lib/supabaseClient";
+    import MarketChart from "$lib/components/MarketChart.svelte";
+    import { getMarketDataRange, type MarketDataPoint } from "$lib/api/market";
+    import { combineDateTime, addHours } from "$lib/utils/date";
 
     $: sessionId = $page.params.id;
 
     let session: OplogSession | null = null;
     let isLoading = true;
     let supabaseReady = false;
+
+    // Chart Data
+    let marketData: Record<string, MarketDataPoint[]> = {};
+    let chartLoading = false;
+    let availableSources: string[] = [];
+
+    const sourceColors: Record<string, string> = {
+        bitkub: "#27AE60", // Green
+        binance_th: "#F3BA2F", // Yellow/Gold
+        maxbit: "#E53935", // Red
+        fx: "#2962FF", // Blue
+    };
+
+    const sourceNames: Record<string, string> = {
+        bitkub: "Bitkub (THB)",
+        binance_th: "Binance TH (THB)",
+        maxbit: "Maxbit (THB)",
+        fx: "USD/THB FX",
+    };
 
     onMount(() => {
         supabaseReady = isSupabaseConfigured();
@@ -36,12 +54,111 @@
             if (!session) {
                 toast.error("Session not found");
                 goto("/today");
+                return;
+            }
+
+            // After session loads, fetch market data
+            if (session.day_id && session.start_time) {
+                // We need the date from the day record.
+                // Currently getSession joins day table? No, it has day_id.
+                // But getSession returns OplogSession which has log_date if we modified the query or if we fetch day separately.
+                // Wait, the interface OplogSession in `src/lib/api/oplog.ts` doesn't explicitly have `log_date` joined. Only `day_id`.
+                // Checking `getSession` implementation:
+                /* 
+                 export async function getSession(session_id: string): Promise<OplogSession | null> {
+                    const { data, error } = await supabase
+                        .from('oplog_sessions')
+                        .select(`
+                      *,
+                      images:oplog_session_images(*),
+                      audio:oplog_session_audio(*),
+                      day:oplog_days(*)
+                    `)
+                    ...
+                */
+                // Wait, I need to verify if `day` is joined. The current `getSession` I saw earlier:
+                /*
+                export async function getSession(session_id: string): Promise<OplogSession | null> {
+                    const { data, error } = await supabase
+                        .from('oplog_sessions')
+                        .select(`
+                      *,
+                      images:oplog_session_images(*),
+                      audio:oplog_session_audio(*)
+                    `)
+                */
+                // It does NOT join `day`. I need to fetch the day or update `getSession` to join it.
+                // The `listSessionsByDate` gets day first then sessions.
+                // `getSession` only gets session.
+                // Use `day_id` to get the date?
+                // Or I can just fetch it here.
+
+                await fetchChartData(session);
             }
         } catch (error) {
             console.error("Failed to load session:", error);
             toast.error("Failed to load session");
         } finally {
             isLoading = false;
+        }
+    }
+
+    async function fetchChartData(session: any) {
+        if (!session.day_id) return;
+
+        chartLoading = true;
+        try {
+            // Get the date string from the day_id
+            // We can do a quick fetch or assume we need to update api.
+            // Let's do a quick fetch directly here or add a helper?
+            // Actually, `session` returned by Supabase might have `day` property if I update the query.
+            // Let's try to update the `getSession` function in `oplog.ts` first?
+            // Or simpler: just fetch it.
+
+            // Wait, I don't want to modify `oplog.ts` heavily if I can avoid it.
+            // But valid standard is to join.
+            // For now, let's just fetch the day.
+            const { data: dayData } = await import("$lib/supabaseClient").then(
+                (m) =>
+                    m.supabase
+                        .from("oplog_days")
+                        .select("log_date")
+                        .eq("id", session.day_id)
+                        .single(),
+            );
+
+            if (!dayData) return;
+            if (!session.start_time) return;
+
+            const dateStr = dayData.log_date;
+            const startTimeStr = session.start_time;
+
+            const startDateTime = combineDateTime(dateStr, startTimeStr);
+            const rangeStart = addHours(startDateTime, -1);
+            const rangeEnd = addHours(startDateTime, 1);
+
+            const allData = await getMarketDataRange(
+                rangeStart.toISOString(),
+                rangeEnd.toISOString(),
+            );
+            console.log("Chart Data Fetched:", allData.length, "points");
+            if (allData.length > 0) {
+                console.log("Sample:", allData[0]);
+            }
+
+            // Group by source
+            const grouped: Record<string, MarketDataPoint[]> = {};
+            allData.forEach((d) => {
+                if (!grouped[d.source]) grouped[d.source] = [];
+                grouped[d.source].push(d);
+            });
+
+            marketData = grouped;
+            availableSources = Object.keys(grouped);
+        } catch (e) {
+            console.error("Error fetching chart data", e);
+        } finally {
+            chartLoading = false;
         }
     }
 
@@ -110,6 +227,36 @@
                     )}
                 </div>
             </div>
+
+            <!-- Market Charts -->
+            {#if chartLoading}
+                <div class="loading-charts">
+                    <div class="spinner-small"></div>
+                    <span>Loading market data...</span>
+                </div>
+            {:else if availableSources.length > 0}
+                <div class="charts-section">
+                    <h3>Market Context (+/- 1 Hour)</h3>
+                    <div class="charts-grid">
+                        {#each availableSources as source}
+                            <MarketChart
+                                data={marketData[source]}
+                                title={sourceNames[source] || source}
+                                color={sourceColors[source] || "#2962FF"}
+                                height={250}
+                            />
+                        {/each}
+                    </div>
+                </div>
+            {:else}
+                <div class="no-data-message">
+                    <p>
+                        No market data found for this time range ({formatTime(
+                            session.start_time,
+                        )} +/- 1h).
+                    </p>
+                </div>
+            {/if}
 
             <div class="detail-card">
                 <h3>Team</h3>
@@ -673,5 +820,63 @@
     .otc-table td.sell {
         color: var(--color-danger);
         font-weight: 600;
+    }
+
+    /* Chart Styles */
+    .charts-section {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .charts-section h3 {
+        margin: 0;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: var(--color-text-tertiary);
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+    }
+
+    .charts-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+
+    @media (min-width: 1024px) {
+        .charts-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+    }
+
+    .loading-charts {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 1rem;
+        color: var(--color-text-tertiary);
+        font-size: 0.875rem;
+        background: var(--color-bg);
+        border-radius: 12px;
+    }
+
+    .spinner-small {
+        width: 1rem;
+        height: 1rem;
+        border: 2px solid var(--color-border-light);
+        border-top-color: var(--color-primary);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+    }
+
+    .no-data-message {
+        padding: 2rem;
+        text-align: center;
+        background: var(--color-bg);
+        border-radius: 12px;
+        color: var(--color-text-tertiary);
+        font-size: 0.9375rem;
+        border: 1px dashed var(--color-border-light);
     }
 </style>
