@@ -13,6 +13,7 @@ const ENDPOINTS = {
     binanceTH: {
         depth: 'https://api.binance.th/api/v1/depth',
     },
+    fx: 'https://open.er-api.com/v6/latest/USD', // Free FX rate API
 };
 
 // MaxBit API credentials
@@ -48,6 +49,29 @@ export interface FxRate {
     rate: number;
     source: string;
     timestamp: Date;
+}
+
+/**
+ * Fetch USD/THB FX rate
+ */
+export async function fetchFxRate(): Promise<FxRate> {
+    try {
+        const response = await fetch('https://open.er-api.com/v6/latest/USD');
+        const data = await response.json();
+
+        if (data.result !== 'success') {
+            throw new Error('Failed to fetch FX rate');
+        }
+
+        return {
+            rate: data.rates.THB,
+            source: 'Open Exchange Rates',
+            timestamp: new Date(),
+        };
+    } catch (error) {
+        console.error('FX API error:', error);
+        throw error;
+    }
 }
 
 /**

@@ -12,17 +12,17 @@
     import { addMinutes } from "$lib/config/timePresets";
     import {
         EXCHANGES,
-        TRADING_STATUS,
         PREFUND_DEFAULTS,
         TEAM_MEMBERS,
         type OtcTransaction,
-        type TradingStatus,
     } from "$lib/config/tradingConfig";
     import {
         fetchMaxbitPrice,
         fetchBitkubOrderBook,
         fetchBinanceTHOrderBook,
+        fetchFxRate,
         calculatePriceDiff,
+        type OrderBook,
     } from "$lib/api/marketData";
 
     export let disabled = false;
@@ -42,11 +42,11 @@
     // === FX ===
     let fxRate = "";
     let fxNotes = "";
+    let isFetchingFx = false;
 
-    // === Broker (BTZ) ===
+    // === Broker (Maxbit) ===
     let btzBid = "";
     let btzAsk = "";
-    let btzStatus: TradingStatus = "can_trade";
     let btzNotes = "";
     let isFetchingBroker = false;
 
@@ -61,6 +61,10 @@
     let exchangeHigher = "";
     let exchangeNotes = "";
     let isFetchingExchange = false;
+
+    // Full order book data (5 levels)
+    let bitkubBook: OrderBook | null = null;
+    let binanceBook: OrderBook | null = null;
 
     // === OTC ===
     let otcTransactions: OtcTransaction[] = [];
@@ -78,6 +82,19 @@
     // Auto-fill end time
     $: if (startTime && !endTime) {
         endTime = addMinutes(startTime, 30);
+    }
+
+    // Auto-fetch FX rate
+    async function fetchFxRateData() {
+        isFetchingFx = true;
+        try {
+            const data = await fetchFxRate();
+            fxRate = data.rate.toFixed(3);
+        } catch (error) {
+            console.error("Failed to fetch FX rate:", error);
+        } finally {
+            isFetchingFx = false;
+        }
     }
 
     // Auto-fetch broker prices
@@ -102,6 +119,10 @@
                 fetchBitkubOrderBook(),
                 fetchBinanceTHOrderBook(),
             ]);
+
+            // Store full order books
+            bitkubBook = bitkub;
+            binanceBook = binanceTH;
 
             if (bitkub) {
                 exchange1Bid = bitkub.bestBid.toFixed(2);
@@ -162,7 +183,6 @@
             // Broker
             btz_bid: btzBid ? parseFloat(btzBid) : null,
             btz_ask: btzAsk ? parseFloat(btzAsk) : null,
-            btz_status: btzStatus,
             btz_notes: btzNotes,
             // Exchange
             exchange1,
@@ -203,7 +223,6 @@
         fxNotes = "";
         btzBid = "";
         btzAsk = "";
-        btzStatus = "can_trade";
         btzNotes = "";
         exchange1Bid = "";
         exchange1Ask = "";
@@ -319,8 +338,22 @@
 
     <!-- FX Section -->
     <CollapsibleSection title="FX (Spot Rate)" icon="📊">
+        <div class="section-action">
+            <button
+                type="button"
+                class="fetch-btn"
+                on:click={fetchFxRateData}
+                disabled={disabled || isSubmitting || isFetchingFx}
+            >
+                {#if isFetchingFx}
+                    ⏳ Loading...
+                {:else}
+                    🔄 Fetch Rate
+                {/if}
+            </button>
+        </div>
         <div class="field">
-            <label>Spot Rate</label>
+            <label>USD/THB Spot Rate</label>
             <input
                 type="text"
                 bind:value={fxRate}
@@ -340,7 +373,7 @@
     </CollapsibleSection>
 
     <!-- Broker Section -->
-    <CollapsibleSection title="Broker (BTZ)" icon="🏦">
+    <CollapsibleSection title="Broker (Maxbit)" icon="🏦">
         <div class="section-action">
             <button
                 type="button"
@@ -377,20 +410,7 @@
                 />
             </div>
         </div>
-        <div class="status-toggle">
-            {#each TRADING_STATUS as status}
-                <button
-                    type="button"
-                    class="status-btn"
-                    class:active={btzStatus === status.value}
-                    on:click={() => (btzStatus = status.value)}
-                    disabled={disabled || isSubmitting}
-                >
-                    <span class="status-icon">{status.icon}</span>
-                    <span class="status-label">{status.label}</span>
-                </button>
-            {/each}
-        </div>
+
         <div class="field">
             <label>Notes</label>
             <textarea
@@ -418,49 +438,98 @@
                 {/if}
             </button>
         </div>
-        <div class="exchange-comparison">
-            <div class="exchange-block">
-                <div class="exchange-label">Bitkub</div>
-                <div class="price-inputs">
-                    <input
-                        type="number"
-                        step="0.01"
-                        bind:value={exchange1Bid}
-                        placeholder="Bid"
-                        disabled={disabled || isSubmitting}
-                    />
-                    <span>/</span>
-                    <input
-                        type="number"
-                        step="0.01"
-                        bind:value={exchange1Ask}
-                        placeholder="Ask"
-                        disabled={disabled || isSubmitting}
-                    />
+
+        <!-- Order Book Tables -->
+        {#if bitkubBook || binanceBook}
+            <div class="order-book-container">
+                <!-- Bitkub Order Book -->
+                <div class="order-book">
+                    <div class="order-book-header bitkub">Bitkub</div>
+                    <div class="order-book-columns">
+                        <div class="order-book-column bids">
+                            <div class="column-header">BID</div>
+                            {#if bitkubBook}
+                                {#each bitkubBook.bids.slice(0, 5) as bid, i}
+                                    <div
+                                        class="order-row bid"
+                                        style="opacity: {1 - i * 0.15}"
+                                    >
+                                        <span class="price"
+                                            >{bid.price.toFixed(2)}</span
+                                        >
+                                        <span class="amount"
+                                            >{bid.amount.toLocaleString()}</span
+                                        >
+                                    </div>
+                                {/each}
+                            {/if}
+                        </div>
+                        <div class="order-book-column asks">
+                            <div class="column-header">ASK</div>
+                            {#if bitkubBook}
+                                {#each bitkubBook.asks.slice(0, 5) as ask, i}
+                                    <div
+                                        class="order-row ask"
+                                        style="opacity: {1 - i * 0.15}"
+                                    >
+                                        <span class="price"
+                                            >{ask.price.toFixed(2)}</span
+                                        >
+                                        <span class="amount"
+                                            >{ask.amount.toLocaleString()}</span
+                                        >
+                                    </div>
+                                {/each}
+                            {/if}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- BinanceTH Order Book -->
+                <div class="order-book">
+                    <div class="order-book-header binance">BinanceTH</div>
+                    <div class="order-book-columns">
+                        <div class="order-book-column bids">
+                            <div class="column-header">BID</div>
+                            {#if binanceBook}
+                                {#each binanceBook.bids.slice(0, 5) as bid, i}
+                                    <div
+                                        class="order-row bid"
+                                        style="opacity: {1 - i * 0.15}"
+                                    >
+                                        <span class="price"
+                                            >{bid.price.toFixed(2)}</span
+                                        >
+                                        <span class="amount"
+                                            >{bid.amount.toLocaleString()}</span
+                                        >
+                                    </div>
+                                {/each}
+                            {/if}
+                        </div>
+                        <div class="order-book-column asks">
+                            <div class="column-header">ASK</div>
+                            {#if binanceBook}
+                                {#each binanceBook.asks.slice(0, 5) as ask, i}
+                                    <div
+                                        class="order-row ask"
+                                        style="opacity: {1 - i * 0.15}"
+                                    >
+                                        <span class="price"
+                                            >{ask.price.toFixed(2)}</span
+                                        >
+                                        <span class="amount"
+                                            >{ask.amount.toLocaleString()}</span
+                                        >
+                                    </div>
+                                {/each}
+                            {/if}
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div class="vs-label">vs</div>
-            <div class="exchange-block">
-                <div class="exchange-label">BinanceTH</div>
-                <div class="price-inputs">
-                    <input
-                        type="number"
-                        step="0.01"
-                        bind:value={exchange2Bid}
-                        placeholder="Bid"
-                        disabled={disabled || isSubmitting}
-                    />
-                    <span>/</span>
-                    <input
-                        type="number"
-                        step="0.01"
-                        bind:value={exchange2Ask}
-                        placeholder="Ask"
-                        disabled={disabled || isSubmitting}
-                    />
-                </div>
-            </div>
-        </div>
+        {/if}
+
         <div class="diff-row">
             <div class="field" style="flex: 1;">
                 <label>Difference</label>
@@ -528,15 +597,6 @@
             <PrefundTracker current={prefundCurrent} target={prefundTarget} />
         </div>
 
-        <div class="field">
-            <label>Matching Status</label>
-            <textarea
-                bind:value={matchingNotes}
-                placeholder="Best BID/ASK matching..."
-                rows="2"
-                disabled={disabled || isSubmitting}
-            ></textarea>
-        </div>
         <div class="field">
             <label>OTC Notes</label>
             <textarea
@@ -734,43 +794,6 @@
         padding-bottom: 0.75rem;
     }
 
-    .status-toggle {
-        display: flex;
-        gap: 0.5rem;
-    }
-
-    .status-btn {
-        flex: 1;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0.375rem;
-        padding: 0.625rem;
-        font-size: 0.8125rem;
-        font-weight: 500;
-        color: var(--color-text-secondary);
-        background: var(--color-bg-secondary);
-        border: 1px solid var(--color-border-light);
-        border-radius: 8px;
-        cursor: pointer;
-        transition: all 0.15s;
-    }
-
-    .status-btn:hover {
-        border-color: var(--color-border);
-    }
-
-    .status-btn.active {
-        color: var(--color-text);
-        background: var(--color-bg);
-        border-color: var(--color-primary);
-        box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.15);
-    }
-
-    .status-icon {
-        font-size: 0.875rem;
-    }
-
     .exchange-comparison {
         display: flex;
         align-items: center;
@@ -959,5 +982,105 @@
     .higher-badge.binance {
         color: #f0b90b;
         background: rgba(240, 185, 11, 0.15);
+    }
+
+    /* Order Book Styles */
+    .order-book-container {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.75rem;
+        margin-bottom: 0.75rem;
+    }
+
+    @media (max-width: 480px) {
+        .order-book-container {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .order-book {
+        border: 1px solid var(--color-border-light);
+        border-radius: 10px;
+        overflow: hidden;
+    }
+
+    .order-book-header {
+        padding: 0.5rem;
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-align: center;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .order-book-header.bitkub {
+        background: linear-gradient(135deg, #1e3a8a, #2563eb);
+        color: white;
+    }
+
+    .order-book-header.binance {
+        background: linear-gradient(135deg, #b45309, #f0b90b);
+        color: #1a1a1a;
+    }
+
+    .order-book-columns {
+        display: flex;
+    }
+
+    .order-book-column {
+        flex: 1;
+        padding: 0.375rem;
+    }
+
+    .order-book-column.bids {
+        background: rgba(52, 199, 89, 0.05);
+    }
+
+    .order-book-column.asks {
+        background: rgba(255, 59, 48, 0.05);
+    }
+
+    .column-header {
+        font-size: 0.625rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--color-text-tertiary);
+        padding-bottom: 0.25rem;
+        text-align: center;
+    }
+
+    .order-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.25rem 0.375rem;
+        font-size: 0.75rem;
+        font-family: var(--font-family-mono, "SF Mono", monospace);
+        border-radius: 4px;
+    }
+
+    .order-row.bid {
+        background: rgba(52, 199, 89, 0.1);
+    }
+
+    .order-row.ask {
+        background: rgba(255, 59, 48, 0.1);
+    }
+
+    .order-row .price {
+        font-weight: 600;
+    }
+
+    .order-row.bid .price {
+        color: #34c759;
+    }
+
+    .order-row.ask .price {
+        color: #ff3b30;
+    }
+
+    .order-row .amount {
+        color: var(--color-text-tertiary);
+        font-size: 0.6875rem;
     }
 </style>

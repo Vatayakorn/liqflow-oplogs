@@ -55,19 +55,11 @@ export const MARKET_STATUS = [
     { value: 'downtrend', label: 'Downtrend' },
 ] as const;
 
-// Trading Status
-export const TRADING_STATUS = [
-    { value: 'can_trade', label: 'ซื้อขายได้', icon: '🟢' },
-    { value: 'cannot_trade', label: 'ซื้อขายไม่ได้', icon: '🔴' },
-    { value: 'partial', label: 'ได้บางส่วน', icon: '🟡' },
-] as const;
-
 // Types
 export type OtcSource = typeof OTC_SOURCES[number]['value'];
 export type Exchange = typeof EXCHANGES[number]['value'];
 export type OtcAction = typeof OTC_ACTIONS[number]['value'];
 export type MarketStatus = typeof MARKET_STATUS[number]['value'];
-export type TradingStatus = typeof TRADING_STATUS[number]['value'];
 
 export interface OtcTransaction {
     id: string;
