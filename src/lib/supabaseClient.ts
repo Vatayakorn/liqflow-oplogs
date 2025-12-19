@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { browser } from '$app/environment';
+import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
 
 /**
  * Supabase Client
@@ -8,13 +9,14 @@ import { browser } from '$app/environment';
 
 let supabaseInstance: SupabaseClient | null = null;
 
+
+
 function getSupabaseClient(): SupabaseClient {
     if (supabaseInstance) return supabaseInstance;
 
     // Get environment variables
-    // These should be set in .env file
-    const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL || '';
-    const supabaseAnonKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY || '';
+    const supabaseUrl = PUBLIC_SUPABASE_URL || '';
+    const supabaseAnonKey = PUBLIC_SUPABASE_ANON_KEY || '';
 
     if (!supabaseUrl || !supabaseAnonKey || supabaseUrl.includes('your-project')) {
         console.warn('⚠️ Supabase credentials not configured. Please set PUBLIC_SUPABASE_URL and PUBLIC_SUPABASE_ANON_KEY in your .env file.');
@@ -44,8 +46,8 @@ export const supabase = browser
  * Check if Supabase is properly configured
  */
 export function isSupabaseConfigured(): boolean {
-    const url = import.meta.env.PUBLIC_SUPABASE_URL || '';
-    const key = import.meta.env.PUBLIC_SUPABASE_ANON_KEY || '';
+    const url = PUBLIC_SUPABASE_URL || '';
+    const key = PUBLIC_SUPABASE_ANON_KEY || '';
     return !!(url && key && !url.includes('your-project') && !url.includes('placeholder'));
 }
 

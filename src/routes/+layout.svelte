@@ -23,7 +23,7 @@
 	<header class="header">
 		<div class="header-content">
 			<a href="/today" class="logo">
-				<span class="logo-text">OpLog</span>
+				<span class="logo-text">OpLogs</span>
 			</a>
 
 			<nav class="nav">

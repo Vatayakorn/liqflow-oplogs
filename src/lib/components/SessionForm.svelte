@@ -21,6 +21,7 @@
         fetchBitkubOrderBook,
         fetchBinanceTHOrderBook,
         fetchFxRate,
+        fetchAllMarketData, // Added
         calculatePriceDiff,
         type OrderBook,
     } from "$lib/api/marketData";
@@ -247,48 +248,63 @@
 
         isSubmitting = true;
 
-        dispatch("submit", {
-            // Time
-            start_time: startTime,
-            end_time: endTime,
-            // Team
-            broker,
-            trader,
-            head,
-            recorder,
-            // FX
-            fx_rate: fxRate,
-            fx_notes: fxNotes,
-            // Broker
-            btz_bid: btzBid ? parseFloat(btzBid) : null,
-            btz_ask: btzAsk ? parseFloat(btzAsk) : null,
-            btz_notes: btzNotes,
-            // Exchange
-            exchange1,
-            exchange1_price:
-                exchange1Bid && exchange1Ask
-                    ? `${exchange1Bid}/${exchange1Ask}`
-                    : "",
-            exchange2,
-            exchange2_price:
-                exchange2Bid && exchange2Ask
-                    ? `${exchange2Bid}/${exchange2Ask}`
-                    : "",
-            exchange_diff: exchangeDiff,
-            exchange_higher: exchangeHigher,
-            exchange_notes: exchangeNotes,
-            // OTC
-            otc_transactions: otcTransactions,
-            prefund_current: prefundCurrent,
-            prefund_target: prefundTarget,
-            matching_notes: matchingNotes,
-            otc_notes: otcNotes,
-            // General
-            note: generalNotes,
-            images,
-        });
+        try {
+            // Fetch latest market context for the record
+            const marketContext = await fetchAllMarketData();
 
-        isSubmitting = false;
+            dispatch("submit", {
+                // Time
+                start_time: startTime,
+                end_time: endTime,
+                // Team
+                broker,
+                trader,
+                head,
+                recorder,
+                // FX
+                fx_rate: fxRate,
+                fx_notes: fxNotes,
+                // Broker
+                btz_bid: btzBid ? parseFloat(btzBid) : null,
+                btz_ask: btzAsk ? parseFloat(btzAsk) : null,
+                btz_notes: btzNotes,
+                // Exchange
+                exchange1,
+                exchange1_price:
+                    exchange1Bid && exchange1Ask
+                        ? `${exchange1Bid}/${exchange1Ask}`
+                        : "",
+                exchange2,
+                exchange2_price:
+                    exchange2Bid && exchange2Ask
+                        ? `${exchange2Bid}/${exchange2Ask}`
+                        : "",
+                exchange_diff: exchangeDiff,
+                exchange_higher: exchangeHigher,
+                exchange_notes: exchangeNotes,
+                // OTC
+                otc_transactions: [
+                    ...otcTransactions,
+                    ...fetchedOtcTransactions,
+                ],
+                prefund_current: prefundCurrent,
+                prefund_target: prefundTarget,
+                matching_notes: matchingNotes,
+                otc_notes: otcNotes,
+                // General
+                note: generalNotes,
+                images,
+                // Context
+                market_context: marketContext,
+            });
+        } catch (error) {
+            console.error("Error submitting form:", error);
+            // Submit anyway without context if it fails?
+            // Or show error. Since this is an enhancement, we probably shouldn't block saving if fetch fails explicitly,
+            // but fetchAllMarketData already catches errors and returns partial nulls, so it should be fine.
+        } finally {
+            isSubmitting = false;
+        }
     }
 
     export function reset() {
@@ -1159,8 +1175,8 @@
     }
 
     .higher-badge.bitkub {
-        color: #ff9500;
-        background: rgba(255, 149, 0, 0.15);
+        color: #00c767;
+        background: rgba(0, 199, 103, 0.15);
     }
 
     .higher-badge.binance {
@@ -1198,7 +1214,7 @@
     }
 
     .order-book-header.bitkub {
-        background: linear-gradient(135deg, #1e3a8a, #2563eb);
+        background: linear-gradient(135deg, #00c767, #009d51);
         color: white;
     }
 

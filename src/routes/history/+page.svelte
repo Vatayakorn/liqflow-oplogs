@@ -47,7 +47,7 @@
 </script>
 
 <svelte:head>
-    <title>History - OpLog</title>
+    <title>History - OpLogs</title>
 </svelte:head>
 
 <div class="history-page">

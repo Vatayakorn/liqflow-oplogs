@@ -72,7 +72,7 @@
 </script>
 
 <svelte:head>
-    <title>Session Details - OpLog</title>
+    <title>Session Details - OpLogs</title>
 </svelte:head>
 
 <div class="session-detail-page">
@@ -126,8 +126,158 @@
                         <span class="label">Head</span>
                         <span class="value">{session.head}</span>
                     </div>
+                    {#if session.recorder}
+                        <div class="detail-item">
+                            <span class="label">Recorder</span>
+                            <span class="value">{session.recorder}</span>
+                        </div>
+                    {/if}
                 </div>
             </div>
+
+            {#if session.fx_rate}
+                <div class="detail-card">
+                    <h3>FX Section</h3>
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <span class="label">Spot Rate</span>
+                            <span class="value">{session.fx_rate} THB</span>
+                        </div>
+                        {#if session.fx_notes}
+                            <div
+                                class="detail-item"
+                                style="grid-column: span 2"
+                            >
+                                <span class="label">FX Notes</span>
+                                <span class="value">{session.fx_notes}</span>
+                            </div>
+                        {/if}
+                    </div>
+                </div>
+            {/if}
+
+            {#if session.btz_bid || session.btz_ask}
+                <div class="detail-card">
+                    <h3>Broker (BTZ/Maxbit)</h3>
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <span class="label">BID</span>
+                            <span class="value">{session.btz_bid || "-"}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="label">ASK</span>
+                            <span class="value">{session.btz_ask || "-"}</span>
+                        </div>
+                        {#if session.btz_notes}
+                            <div class="detail-item">
+                                <span class="label">Notes</span>
+                                <span class="value">{session.btz_notes}</span>
+                            </div>
+                        {/if}
+                    </div>
+                </div>
+            {/if}
+
+            {#if session.exchange1 || session.exchange2}
+                <div class="detail-card">
+                    <h3>Exchange Comparison</h3>
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <span class="label"
+                                >{session.exchange1 || "Exchange 1"}</span
+                            >
+                            <span class="value"
+                                >{session.exchange1_price || "-"}</span
+                            >
+                        </div>
+                        <div class="detail-item">
+                            <span class="label"
+                                >{session.exchange2 || "Exchange 2"}</span
+                            >
+                            <span class="value"
+                                >{session.exchange2_price || "-"}</span
+                            >
+                        </div>
+                        <div class="detail-item">
+                            <span class="label">Difference</span>
+                            <span class="value"
+                                >{session.exchange_diff || "0.00"} ({session.exchange_higher ||
+                                    "-"})</span
+                            >
+                        </div>
+                    </div>
+                    {#if session.exchange_notes}
+                        <div class="notes-box">
+                            <span class="label">Exchange Notes:</span>
+                            <p>{session.exchange_notes}</p>
+                        </div>
+                    {/if}
+                </div>
+            {/if}
+
+            {#if (session.otc_transactions && session.otc_transactions.length > 0) || session.prefund_current}
+                <div class="detail-card">
+                    <h3>OTC Operations</h3>
+                    {#if session.otc_transactions && session.otc_transactions.length > 0}
+                        <div class="otc-table-container">
+                            <table class="otc-table">
+                                <thead>
+                                    <tr>
+                                        <th>Customer</th>
+                                        <th>Action</th>
+                                        <th>Amount</th>
+                                        <th>Total (THB)</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {#each session.otc_transactions as tx}
+                                        <tr>
+                                            <td>{tx.customerName}</td>
+                                            <td class={tx.action.toLowerCase()}
+                                                >{tx.action}</td
+                                            >
+                                            <td
+                                                >{tx.amount.toLocaleString()}
+                                                {tx.currency}</td
+                                            >
+                                            <td
+                                                >฿{tx.total?.toLocaleString() ||
+                                                    "-"}</td
+                                            >
+                                            <td>{tx.status}</td>
+                                        </tr>
+                                    {/each}
+                                </tbody>
+                            </table>
+                        </div>
+                    {/if}
+
+                    <div class="detail-grid" style="margin-top: 1rem;">
+                        <div class="detail-item">
+                            <span class="label">Prefund Status</span>
+                            <span class="value">
+                                {session.prefund_current?.toLocaleString() || 0}
+                                / {session.prefund_target?.toLocaleString() ||
+                                    0}
+                            </span>
+                        </div>
+                    </div>
+
+                    {#if session.matching_notes}
+                        <div class="notes-box">
+                            <span class="label">Matching Notes:</span>
+                            <p>{session.matching_notes}</p>
+                        </div>
+                    {/if}
+                    {#if session.otc_notes}
+                        <div class="notes-box">
+                            <span class="label">OTC Notes:</span>
+                            <p>{session.otc_notes}</p>
+                        </div>
+                    {/if}
+                </div>
+            {/if}
 
             {#if session.market_mode || session.inventory_status || session.risk_flag || session.execution_issue}
                 <div class="detail-card">
@@ -469,5 +619,59 @@
         .delete-btn {
             width: 100%;
         }
+    }
+
+    /* New Detail Styles */
+    .notes-box {
+        margin-top: 0.75rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid var(--color-separator);
+    }
+
+    .notes-box .label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--color-text-tertiary);
+        display: block;
+        margin-bottom: 0.25rem;
+    }
+
+    .notes-box p {
+        margin: 0;
+        font-size: 0.875rem;
+        color: var(--color-text-secondary);
+    }
+
+    .otc-table-container {
+        overflow-x: auto;
+        margin: 0.5rem -1rem;
+        padding: 0 1rem;
+    }
+
+    .otc-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.8125rem;
+    }
+
+    .otc-table th {
+        text-align: left;
+        padding: 0.5rem;
+        color: var(--color-text-tertiary);
+        border-bottom: 2px solid var(--color-separator);
+    }
+
+    .otc-table td {
+        padding: 0.5rem;
+        border-bottom: 1px solid var(--color-separator);
+    }
+
+    .otc-table td.buy {
+        color: var(--color-success);
+        font-weight: 600;
+    }
+    .otc-table td.sell {
+        color: var(--color-danger);
+        font-weight: 600;
     }
 </style>

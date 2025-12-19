@@ -3,6 +3,8 @@
  * Fetches real-time prices from various exchanges
  */
 
+import { supabase } from '$lib/supabaseClient';
+
 // API Endpoints
 const ENDPOINTS = {
     maxbit: 'https://maxbitapi-prd.unit.co.th/api/otc',
@@ -29,6 +31,7 @@ export interface BrokerPrice {
     ask: number;
     source: string;
     timestamp: Date;
+    raw?: any;
 }
 
 export interface OrderBookEntry {
@@ -43,30 +46,81 @@ export interface OrderBook {
     bestAsk: number;
     source: string;
     timestamp: Date;
+    raw?: any;
 }
 
 export interface FxRate {
     rate: number;
     source: string;
     timestamp: Date;
+    raw?: any;
 }
 
 /**
- * Fetch USD/THB FX rate
+ * Fetch latest data from Supabase 'market_data' table
+ */
+async function fetchLatestFromDb(source: string, symbol?: string, validitySeconds = 5): Promise<any | null> {
+    try {
+        let query = supabase
+            .from('market_data')
+            .select('*')
+            .eq('source', source)
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+        if (symbol) {
+            query = query.eq('symbol', symbol);
+        }
+
+        const { data, error } = await query.single();
+
+        if (error || !data) return null;
+
+        // Check freshness
+        const created = new Date(data.created_at);
+        const now = new Date();
+        const diffSeconds = (now.getTime() - created.getTime()) / 1000;
+
+        if (diffSeconds > validitySeconds) {
+            console.warn(`[MarketData] DB data for ${source} is stale (${diffSeconds.toFixed(1)}s old). Fallback to API.`);
+            return null;
+        }
+
+        return data;
+    } catch (err) {
+        console.error(`[MarketData] DB fetch error for ${source}:`, err);
+        return null;
+    }
+}
+
+/**
+ * Fetch USD/THB FX rate (DB First -> API Fallback)
  */
 export async function fetchFxRate(): Promise<FxRate> {
+    // 1. Try DB
+    const dbData = await fetchLatestFromDb('fx', 'USD_THB');
+    if (dbData) {
+        return {
+            rate: dbData.price,
+            source: 'FX (Bridge)',
+            timestamp: new Date(dbData.created_at),
+            raw: dbData.raw_data
+        };
+    }
+
+    // 2. API Fallback
     try {
-        const response = await fetch('https://open.er-api.com/v6/latest/USD');
+        const response = await fetch('/api/market/fx');
         const data = await response.json();
 
-        if (data.result !== 'success') {
-            throw new Error('Failed to fetch FX rate');
+        if (data.error) {
+            throw new Error(data.error);
         }
 
         return {
-            rate: data.rates.THB,
-            source: 'Open Exchange Rates',
-            timestamp: new Date(),
+            rate: data.rate,
+            source: data.source,
+            timestamp: new Date(data.timestamp),
         };
     } catch (error) {
         console.error('FX API error:', error);
@@ -75,9 +129,23 @@ export async function fetchFxRate(): Promise<FxRate> {
 }
 
 /**
- * Fetch BTZ (MaxBit) broker prices via local proxy
+ * Fetch BTZ (MaxBit) broker prices (DB First -> API Fallback)
  */
 export async function fetchMaxbitPrice(symbol = 'usdt'): Promise<BrokerPrice> {
+    // 1. Try DB
+    // Bridge uses 'maxbit', 'USDT'
+    const dbData = await fetchLatestFromDb('maxbit', 'USDT');
+    if (dbData) {
+        return {
+            bid: Number(dbData.bid),
+            ask: Number(dbData.ask),
+            source: 'BTZ (Bridge)',
+            timestamp: new Date(dbData.created_at),
+            raw: dbData.raw_data
+        };
+    }
+
+    // 2. API Fallback
     try {
         const response = await fetch(`/api/market/maxbit?symbol=${symbol}`);
         const data = await response.json();
@@ -99,9 +167,31 @@ export async function fetchMaxbitPrice(symbol = 'usdt'): Promise<BrokerPrice> {
 }
 
 /**
- * Fetch Bitkub order book
+ * Fetch Bitkub order book (DB First -> API Fallback)
  */
 export async function fetchBitkubOrderBook(symbol = 'THB_USDT', limit = 5): Promise<OrderBook> {
+    // 1. Try DB
+    const dbData = await fetchLatestFromDb('bitkub', 'THB_USDT');
+    if (dbData && dbData.order_book) {
+        const bids = dbData.order_book.bids.slice(0, limit).map((b: any) => ({
+            price: b[0], amount: b[1]
+        }));
+        const asks = dbData.order_book.asks.slice(0, limit).map((a: any) => ({
+            price: a[0], amount: a[1]
+        }));
+
+        return {
+            bids,
+            asks,
+            bestBid: bids[0]?.price || 0,
+            bestAsk: asks[0]?.price || 0,
+            source: 'Bitkub (Bridge)',
+            timestamp: new Date(dbData.created_at),
+            raw: dbData.raw_data
+        };
+    }
+
+    // 2. API Fallback
     try {
         const response = await fetch(`${ENDPOINTS.bitkub.depth}?sym=${symbol}&lmt=${limit}`);
         const data = await response.json();
@@ -131,9 +221,31 @@ export async function fetchBitkubOrderBook(symbol = 'THB_USDT', limit = 5): Prom
 }
 
 /**
- * Fetch BinanceTH order book
+ * Fetch BinanceTH order book (DB First -> API Fallback)
  */
 export async function fetchBinanceTHOrderBook(symbol = 'USDTTHB', limit = 5): Promise<OrderBook> {
+    // 1. Try DB
+    const dbData = await fetchLatestFromDb('binance_th', 'USDTTHB');
+    if (dbData && dbData.order_book) {
+        const bids = dbData.order_book.bids.slice(0, limit).map((b: any) => ({
+            price: parseFloat(b[0]), amount: parseFloat(b[1])
+        }));
+        const asks = dbData.order_book.asks.slice(0, limit).map((a: any) => ({
+            price: parseFloat(a[0]), amount: parseFloat(a[1])
+        }));
+
+        return {
+            bids,
+            asks,
+            bestBid: bids[0]?.price || 0,
+            bestAsk: asks[0]?.price || 0,
+            source: 'BinanceTH (Bridge)',
+            timestamp: new Date(dbData.created_at),
+            raw: dbData.raw_data
+        };
+    }
+
+    // 2. API Fallback
     try {
         const response = await fetch(`${ENDPOINTS.binanceTH.depth}?symbol=${symbol}&limit=${limit}`);
         const data = await response.json();
@@ -169,17 +281,20 @@ export async function fetchAllMarketData(): Promise<{
     broker: BrokerPrice | null;
     bitkub: OrderBook | null;
     binanceTH: OrderBook | null;
+    fx: FxRate | null;
 }> {
-    const [brokerResult, bitkubResult, binanceTHResult] = await Promise.allSettled([
+    const [brokerResult, bitkubResult, binanceTHResult, fxResult] = await Promise.allSettled([
         fetchMaxbitPrice(),
         fetchBitkubOrderBook(),
         fetchBinanceTHOrderBook(),
+        fetchFxRate(),
     ]);
 
     return {
         broker: brokerResult.status === 'fulfilled' ? brokerResult.value : null,
         bitkub: bitkubResult.status === 'fulfilled' ? bitkubResult.value : null,
         binanceTH: binanceTHResult.status === 'fulfilled' ? binanceTHResult.value : null,
+        fx: fxResult.status === 'fulfilled' ? fxResult.value : null,
     };
 }
 

@@ -1,5 +1,5 @@
 /**
- * Operation Log API Helper Functions
+ * Operation Logs API Helper Functions
  * CRUD operations for days, sessions, and images
  */
 
@@ -25,6 +25,25 @@ export interface OplogSession {
     broker: string;
     trader: string;
     head: string;
+    recorder: string | null;
+    fx_rate: number | null;
+    fx_notes: string | null;
+    btz_bid: number | null;
+    btz_ask: number | null;
+    btz_notes: string | null;
+    exchange1: string | null;
+    exchange1_price: string | null;
+    exchange2: string | null;
+    exchange2_price: string | null;
+    exchange_diff: string | null;
+    exchange_higher: string | null;
+    exchange_notes: string | null;
+    otc_transactions: any[] | null;
+    prefund_current: number | null;
+    prefund_target: number | null;
+    matching_notes: string | null;
+    otc_notes: string | null;
+    market_context: any | null; // Full market snapshot
     market_mode: string | null;
     inventory_status: string | null;
     risk_flag: string | null;
@@ -53,6 +72,25 @@ export interface CreateSessionPayload {
     broker: string;
     trader: string;
     head: string;
+    recorder?: string;
+    fx_rate?: number;
+    fx_notes?: string;
+    btz_bid?: number;
+    btz_ask?: number;
+    btz_notes?: string;
+    exchange1?: string;
+    exchange1_price?: string;
+    exchange2?: string;
+    exchange2_price?: string;
+    exchange_diff?: string;
+    exchange_higher?: string;
+    exchange_notes?: string;
+    otc_transactions?: any[];
+    prefund_current?: number;
+    prefund_target?: number;
+    matching_notes?: string;
+    otc_notes?: string;
+    market_context?: any; // Full market snapshot
     market_mode?: string;
     inventory_status?: string;
     risk_flag?: string;
@@ -268,7 +306,9 @@ export async function uploadImages(
         const path = `${log_date}/${shift}/${session_id}/${timestamp}_${safeName}`;
 
         // Upload to storage
-        const { error: uploadError } = await supabase.storage
+        console.log(`Uploading file to path: ${path} in bucket: ${STORAGE_BUCKET}`);
+
+        const { data: uploadData, error: uploadError } = await supabase.storage
             .from(STORAGE_BUCKET)
             .upload(path, file, {
                 cacheControl: '3600',
@@ -276,9 +316,17 @@ export async function uploadImages(
             });
 
         if (uploadError) {
-            console.error(`Failed to upload ${file.name}:`, uploadError);
+            console.error(`❌ Failed to upload ${file.name}:`, {
+                message: uploadError.message,
+                name: uploadError.name,
+                cause: uploadError.cause,
+                bucket: STORAGE_BUCKET,
+                path: path
+            });
             continue;
         }
+
+        console.log(`✅ Successfully uploaded ${file.name} to storage:`, uploadData);
 
         // Get public URL
         const { data: urlData } = supabase.storage

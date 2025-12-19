@@ -64,8 +64,28 @@
                 broker: formData.broker,
                 trader: formData.trader,
                 head: formData.head,
+                recorder: formData.recorder,
+                fx_rate: formData.fx_rate
+                    ? parseFloat(formData.fx_rate)
+                    : undefined,
+                fx_notes: formData.fx_notes,
+                btz_bid: formData.btz_bid,
+                btz_ask: formData.btz_ask,
+                btz_notes: formData.btz_notes,
+                exchange1: formData.exchange1,
+                exchange1_price: formData.exchange1_price,
+                exchange2: formData.exchange2,
+                exchange2_price: formData.exchange2_price,
+                exchange_diff: formData.exchange_diff,
+                exchange_higher: formData.exchange_higher,
+                exchange_notes: formData.exchange_notes,
+                otc_transactions: formData.otc_transactions,
+                prefund_current: formData.prefund_current,
+                prefund_target: formData.prefund_target,
+                matching_notes: formData.matching_notes,
+                otc_notes: formData.otc_notes,
                 note: formData.note,
-                // Extended fields handled separately for now
+                market_context: formData.market_context, // Added
             });
 
             // Upload images if any
@@ -122,12 +142,12 @@
 </script>
 
 <svelte:head>
-    <title>Today - OpLog</title>
+    <title>Today - OpLogs</title>
 </svelte:head>
 
 <div class="today-page">
     <header class="page-header">
-        <h1>Operation Log</h1>
+        <h1>Operation Logs</h1>
         <div class="date-picker">
             <input
                 type="date"
