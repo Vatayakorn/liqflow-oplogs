@@ -24,6 +24,7 @@
         calculatePriceDiff,
         type OrderBook,
     } from "$lib/api/marketData";
+    import { fetchTodayOtcTransactions } from "$lib/api/otcApi";
 
     export let disabled = false;
 
@@ -68,10 +69,12 @@
 
     // === OTC ===
     let otcTransactions: OtcTransaction[] = [];
+    let fetchedOtcTransactions: OtcTransaction[] = []; // Transactions from API
     let prefundCurrent = 0;
     let prefundTarget = PREFUND_DEFAULTS.target;
     let matchingNotes = "";
     let otcNotes = "";
+    let isFetchingOtc = false;
 
     // === General ===
     let generalNotes = "";
@@ -161,6 +164,66 @@
 
     function handleImageChange(event: CustomEvent<File[]>) {
         images = event.detail;
+    }
+
+    // Fetch OTC transactions from API (midnight to now)
+    async function fetchOtcTransactions() {
+        isFetchingOtc = true;
+        try {
+            const transactions = await fetchTodayOtcTransactions();
+            fetchedOtcTransactions = transactions;
+            console.log("Fetched transactions:", transactions);
+            if (transactions.length === 0) {
+                alert(
+                    "ไม่พบข้อมูลวันนี้ (0 รายการ) - กรุณาตรวจสอบ API Configuration ใน Console (F12)",
+                );
+            }
+        } catch (error) {
+            console.error("Failed to fetch OTC transactions:", error);
+            alert(
+                `เกิดข้อผิดพลาด: ${error instanceof Error ? error.message : error}`,
+            );
+        } finally {
+            isFetchingOtc = false;
+        }
+    }
+
+    // Format currency for display
+    function formatCurrency(amount: number): string {
+        if (amount >= 1000000) return `${(amount / 1000000).toFixed(1)}M`;
+        if (amount >= 1000) return `${(amount / 1000).toFixed(0)}K`;
+        return amount.toLocaleString();
+    }
+
+    function formatDate(dateStr?: string): string {
+        if (!dateStr) return "";
+        const date = new Date(dateStr);
+
+        const month = date.toLocaleString("en-US", { month: "long" });
+        const day = date.getDate();
+        const year = date.getFullYear();
+        const time = date.toLocaleString("en-US", {
+            hour: "numeric",
+            minute: "2-digit",
+            hour12: true,
+        });
+
+        // Add suffix to day (st, nd, rd, th)
+        const suffix = (day: number) => {
+            if (day > 3 && day < 21) return "th";
+            switch (day % 10) {
+                case 1:
+                    return "st";
+                case 2:
+                    return "nd";
+                case 3:
+                    return "rd";
+                default:
+                    return "th";
+            }
+        };
+
+        return `${month} ${day}${suffix(day)}, ${year} ${time}`;
     }
 
     async function handleSubmit() {
@@ -567,6 +630,73 @@
         icon="💰"
         badge={otcTransactions.length || null}
     >
+        <div class="section-action">
+            <button
+                type="button"
+                class="fetch-btn"
+                on:click={fetchOtcTransactions}
+                disabled={disabled || isSubmitting || isFetchingOtc}
+            >
+                {#if isFetchingOtc}
+                    ⏳ Loading...
+                {:else}
+                    🔄 ดึงข้อมูลวันนี้
+                {/if}
+            </button>
+        </div>
+
+        <!-- Fetched OTC Orders (Compact View) -->
+        {#if fetchedOtcTransactions.length > 0}
+            <div class="fetched-orders">
+                <div class="fetched-orders-header">
+                    <span
+                        >📋 วันนี้ ({fetchedOtcTransactions.length} รายการ)</span
+                    >
+                </div>
+                <div class="fetched-orders-list">
+                    {#each fetchedOtcTransactions as tx (tx.id)}
+                        <div
+                            class="order-card"
+                            class:buy={tx.action === "BUY"}
+                            class:sell={tx.action === "SELL"}
+                        >
+                            <div class="order-row">
+                                <span class="order-customer"
+                                    >{tx.customerName}</span
+                                >
+                                <span class="order-time"
+                                    >{formatDate(tx.timestamp)}</span
+                                >
+                                <span
+                                    class="order-action"
+                                    class:buy={tx.action === "BUY"}
+                                    class:sell={tx.action === "SELL"}
+                                >
+                                    {tx.action}
+                                </span>
+                            </div>
+                            <div class="order-row">
+                                <span class="order-amount"
+                                    >{formatCurrency(tx.amount)}
+                                    {tx.currency}</span
+                                >
+                                <span class="order-total"
+                                    >฿{formatCurrency(tx.total || 0)}</span
+                                >
+                                <span
+                                    class="order-status"
+                                    class:done={tx.status === "Done"}
+                                    class:pending={tx.status === "Pending"}
+                                >
+                                    {tx.status || "-"}
+                                </span>
+                            </div>
+                        </div>
+                    {/each}
+                </div>
+            </div>
+        {/if}
+
         <OtcTransactionInput
             bind:transactions={otcTransactions}
             on:change={handleOtcChange}
@@ -1082,5 +1212,113 @@
     .order-row .amount {
         color: var(--color-text-tertiary);
         font-size: 0.6875rem;
+    }
+
+    /* Fetched OTC Orders Compact Styles */
+    .fetched-orders {
+        margin-bottom: 0.75rem;
+    }
+
+    .fetched-orders-header {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--color-text-secondary);
+        margin-bottom: 0.5rem;
+    }
+
+    .fetched-orders-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.375rem;
+        max-height: 200px;
+        overflow-y: auto;
+    }
+
+    .order-card {
+        display: flex;
+        flex-direction: column;
+        gap: 0.125rem;
+        padding: 0.5rem 0.625rem;
+        background: var(--color-bg-secondary);
+        border-radius: 8px;
+        border-left: 3px solid var(--color-border);
+        font-size: 0.75rem;
+    }
+
+    .order-card.buy {
+        border-left-color: #34c759;
+    }
+
+    .order-card.sell {
+        border-left-color: #ff3b30;
+    }
+
+    .order-card .order-row {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0;
+        background: transparent;
+    }
+
+    .order-customer {
+        flex: 1;
+        font-weight: 600;
+        color: var(--color-text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .order-action {
+        font-size: 0.625rem;
+        font-weight: 700;
+        padding: 0.125rem 0.375rem;
+        border-radius: 4px;
+        text-transform: uppercase;
+    }
+
+    .order-action.buy {
+        color: #34c759;
+        background: rgba(52, 199, 89, 0.15);
+    }
+
+    .order-action.sell {
+        color: #ff3b30;
+        background: rgba(255, 59, 48, 0.15);
+    }
+
+    .order-amount {
+        color: var(--color-text);
+        font-family: var(--font-family-mono, monospace);
+    }
+
+    .order-time {
+        font-size: 10px;
+        color: var(--color-text-tertiary);
+        white-space: nowrap;
+    }
+
+    .order-total {
+        color: var(--color-text-secondary);
+        font-family: var(--font-family-mono, monospace);
+    }
+
+    .order-status {
+        font-size: 0.625rem;
+        font-weight: 600;
+        padding: 0.125rem 0.375rem;
+        border-radius: 4px;
+        margin-left: auto;
+    }
+
+    .order-status.done {
+        color: #34c759;
+        background: rgba(52, 199, 89, 0.15);
+    }
+
+    .order-status.pending {
+        color: #ff9500;
+        background: rgba(255, 149, 0, 0.15);
     }
 </style>

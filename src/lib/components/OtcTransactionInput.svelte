@@ -38,7 +38,8 @@
             timestamp: new Date().toISOString(),
         };
 
-        transactions = [...transactions, newTx];
+        // Add new transaction to the top of the list
+        transactions = [newTx, ...transactions];
         dispatch("change", transactions);
         resetForm();
     }
@@ -60,9 +61,40 @@
         if (amt >= 1000) return `${(amt / 1000).toFixed(0)}K`;
         return amt.toLocaleString();
     }
+
+    function formatDate(dateStr?: string): string {
+        if (!dateStr) return "";
+        const date = new Date(dateStr);
+
+        const month = date.toLocaleString("en-US", { month: "long" });
+        const day = date.getDate();
+        const year = date.getFullYear();
+        const time = date.toLocaleString("en-US", {
+            hour: "numeric",
+            minute: "2-digit",
+            hour12: true,
+        });
+
+        // Add suffix to day (st, nd, rd, th)
+        const suffix = (day: number) => {
+            if (day > 3 && day < 21) return "th";
+            switch (day % 10) {
+                case 1:
+                    return "st";
+                case 2:
+                    return "nd";
+                case 3:
+                    return "rd";
+                default:
+                    return "th";
+            }
+        };
+
+        return `${month} ${day}${suffix(day)}, ${year} ${time}`;
+    }
 </script>
 
-<div class="otc-input">
+<div class="otc-input" id="otc-transaction-container">
     {#if transactions.length > 0}
         <div class="transaction-list">
             {#each transactions as tx (tx.id)}
@@ -70,27 +102,37 @@
                     class="transaction-item"
                     class:buy={tx.action === "BUY"}
                     class:sell={tx.action === "SELL"}
+                    id="tx-{tx.id}"
                 >
                     <div class="tx-main">
-                        <span class="tx-source">{tx.source}</span>
-                        <span class="tx-customer">{tx.customerName}</span>
-                        <span
-                            class="tx-action"
-                            class:buy={tx.action === "BUY"}
-                            class:sell={tx.action === "SELL"}
-                        >
-                            {tx.action}
-                        </span>
-                        <span class="tx-amount"
-                            >{formatAmount(tx.amount)} {tx.currency}</span
-                        >
-                        <span class="tx-rate">@{tx.rate}</span>
+                        <div class="tx-top-row">
+                            <span class="tx-source">{tx.source}</span>
+                            <span class="tx-timestamp"
+                                >{formatDate(tx.timestamp)}</span
+                            >
+                        </div>
+                        <div class="tx-content-row">
+                            <span class="tx-customer">{tx.customerName}</span>
+                            <span
+                                class="tx-action"
+                                class:buy={tx.action === "BUY"}
+                                class:sell={tx.action === "SELL"}
+                            >
+                                {tx.action}
+                            </span>
+                            <span class="tx-amount"
+                                >{formatAmount(tx.amount)} {tx.currency}</span
+                            >
+                            <span class="tx-rate">@{tx.rate}</span>
+                        </div>
                     </div>
                     <button
                         type="button"
                         class="remove-btn"
                         on:click={() => removeTransaction(tx.id)}
                         {disabled}
+                        aria-label="Remove transaction"
+                        title="Remove transaction"
                     >
                         <svg
                             viewBox="0 0 24 24"
@@ -233,10 +275,31 @@
 
     .tx-main {
         display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        flex: 1;
+    }
+
+    .tx-top-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        margin-bottom: 0.125rem;
+    }
+
+    .tx-content-row {
+        display: flex;
         align-items: center;
         gap: 0.5rem;
-        flex: 1;
         flex-wrap: wrap;
+    }
+
+    .tx-timestamp {
+        font-size: 11px;
+        color: var(--color-text-tertiary);
+        font-weight: 500;
+        letter-spacing: -0.01em;
     }
 
     .tx-source {

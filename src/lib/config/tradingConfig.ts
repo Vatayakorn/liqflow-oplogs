@@ -70,6 +70,8 @@ export interface OtcTransaction {
     currency: 'USDT' | 'USDC' | 'THB';
     rate: number;
     timestamp?: string;
+    status?: string;
+    total?: number;
 }
 
 export interface ExchangeComparison {
