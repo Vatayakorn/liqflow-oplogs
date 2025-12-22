@@ -10,4 +10,17 @@ declare global {
 	}
 }
 
-export {};
+export { };
+
+declare module 'virtual:pwa-register/svelte' {
+	// @ts-expect-error ignore-error
+	import type { Writable } from 'svelte/store';
+	// @ts-expect-error ignore-error
+	import type { RegisterSWOptions } from 'vite-plugin-pwa/types';
+
+	export function useRegisterSW(options?: RegisterSWOptions): {
+		needRefresh: Writable<boolean>;
+		offlineReady: Writable<boolean>;
+		updateServiceWorker: (reloadPage?: boolean) => Promise<void>;
+	};
+}

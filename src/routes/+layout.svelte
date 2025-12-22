@@ -1,6 +1,7 @@
 <script lang="ts">
 	import "../app.css";
 	import Toast from "$lib/components/Toast.svelte";
+	import ReloadPrompt from "$lib/components/ReloadPrompt.svelte";
 	import { page } from "$app/stores";
 
 	const navItems = [
@@ -50,6 +51,7 @@
 	</main>
 
 	<Toast />
+	<ReloadPrompt />
 </div>
 
 <style>

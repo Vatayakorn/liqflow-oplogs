@@ -5,6 +5,7 @@
 	"type": "module",
 	"scripts": {
 		"dev": "vite dev",
+		"host": "vite dev --host",
 		"build": "vite build",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
@@ -22,7 +23,8 @@
 		"svelte-check": "^4.3.4",
 		"tailwindcss": "^4.1.18",
 		"typescript": "^5.9.3",
-		"vite": "^7.2.6"
+		"vite": "^7.2.6",
+		"vite-plugin-pwa": "^1.2.0"
 	},
 	"dependencies": {
 		"@supabase/supabase-js": "^2.89.0",
