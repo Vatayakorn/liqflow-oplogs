@@ -161,6 +161,43 @@
                 fetchEnd = addHours(fetchEnd, 24);
             }
 
+            // Always extend fetchEnd to current time for better coverage
+            // This ensures we always get the latest market data available
+            const now = new Date();
+
+            console.log(
+                `[Chart Debug] Shift ${shift}: ${shiftConfig.start}-${shiftConfig.end}`,
+            );
+            console.log(
+                `[Chart Debug] Fetch range before extension: ${fetchStart.toISOString()} to ${fetchEnd.toISOString()}`,
+            );
+            console.log(`[Chart Debug] Current time: ${now.toISOString()}`);
+
+            // If we're past the shift start time, extend to current time
+            if (now > fetchStart) {
+                if (now > fetchEnd) {
+                    // Past scheduled end - check if it's a recent session (within 48 hours)
+                    const hoursSinceEnd =
+                        (now.getTime() - fetchEnd.getTime()) / (1000 * 60 * 60);
+                    if (hoursSinceEnd < 48) {
+                        fetchEnd = now;
+                        console.log(
+                            `[Chart Debug] Extended fetchEnd to now (session ended ${hoursSinceEnd.toFixed(1)}h ago)`,
+                        );
+                    }
+                } else {
+                    // Still within the shift - extend to current time
+                    fetchEnd = now;
+                    console.log(
+                        `[Chart Debug] Extended fetchEnd to now (currently in shift)`,
+                    );
+                }
+            }
+
+            console.log(
+                `[Chart Debug] Final fetch range: ${fetchStart.toISOString()} to ${fetchEnd.toISOString()}`,
+            );
+
             // Calculate session visible range (for default zoom)
             const sessionStart = session.start_time || shiftConfig.start;
             const sessionEnd = session.end_time || shiftConfig.end;
@@ -168,6 +205,25 @@
             let visibleEnd = combineDateTime(dateStr, sessionEnd);
             if (sessionEnd < sessionStart) {
                 visibleEnd = addHours(visibleEnd, 24);
+            }
+
+            // Extend visible range to current time if session is ongoing
+            // This ensures the chart shows the latest data by default
+            if (now > visibleStart && now < visibleEnd) {
+                visibleEnd = now;
+                console.log(
+                    `[Chart Debug] Extended visibleEnd to current time for ongoing session`,
+                );
+            } else if (now > visibleEnd) {
+                // Session ended, but extend visible range to show latest data
+                const hoursSinceEnd =
+                    (now.getTime() - visibleEnd.getTime()) / (1000 * 60 * 60);
+                if (hoursSinceEnd < 48) {
+                    visibleEnd = now;
+                    console.log(
+                        `[Chart Debug] Extended visibleEnd to current time for recent session`,
+                    );
+                }
             }
 
             // Store session time range for chart zoom (Unix seconds)
