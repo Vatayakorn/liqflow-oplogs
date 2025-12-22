@@ -5,6 +5,7 @@ import requests
 from dotenv import load_dotenv
 from supabase import create_client, Client
 from datetime import datetime
+import re
 
 # Load environment variables
 # Load environment variables
@@ -31,7 +32,7 @@ INTERVAL_SECONDS = 1
 ENDPOINTS = {
     'bitkub': 'https://api.bitkub.com/api/market/depth?sym=THB_USDT&lmt=5',
     'binance_th': 'https://api.binance.th/api/v1/depth?symbol=USDTTHB&limit=5',
-    'fx': 'https://open.er-api.com/v6/latest/USD',
+    'fx': 'https://www.google.com/finance/quote/USD-THB?hl=en',
     'maxbit': 'https://maxbitapi-prd.unit.co.th/api/otc'
 }
 
@@ -143,10 +144,19 @@ def fetch_maxbit():
 
 def fetch_fx():
     try:
-        response = requests.get(ENDPOINTS['fx'], timeout=5)
-        data = response.json()
-        if 'rates' in data and 'THB' in data['rates']:
-            rate = data['rates']['THB']
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        response = requests.get(ENDPOINTS['fx'], headers=headers, timeout=5)
+        html = response.text
+        
+        # Google Finance uses the class "fxKbKc" for the primary exchange rate
+        # Using the same regex as the SvelteKit API proxy
+        price_regex = r'class="[^"]*fxKbKc[^"]*"[^>]*>([0-9,.]+)<'
+        match = re.search(price_regex, html)
+        
+        if match and match.group(1):
+            rate = float(match.group(1).replace(',', ''))
             return {
                 'source': 'fx',
                 'symbol': 'USD_THB',
@@ -154,8 +164,10 @@ def fetch_fx():
                 'bid': None,
                 'ask': None,
                 'order_book': None,
-                'raw_data': data
+                'raw_data': {'source': 'Google Finance', 'html_parsing': True}
             }
+        else:
+            print(f"Error parsing FX from Google Finance. Match: {match}")
     except Exception as e:
         print(f"Error fetching FX: {e}")
     return None

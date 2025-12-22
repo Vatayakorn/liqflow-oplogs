@@ -4,13 +4,16 @@
     import {
         getSpreadTrend,
         getPrefundHistory,
+        getMarketComparison,
         type SpreadDataPoint,
         type PrefundDataPoint,
+        type MarketComparisonPoint,
     } from "$lib/api/analytics";
     import { toast } from "$lib/stores/toast";
 
     let spreadData: SpreadDataPoint[] = [];
     let prefundData: PrefundDataPoint[] = [];
+    let marketData: MarketComparisonPoint[] = [];
     let isLoading = true;
 
     // Filters
@@ -18,7 +21,11 @@
     let prefundDays = 7;
 
     onMount(async () => {
-        await Promise.all([loadSpreadData(), loadPrefundData()]);
+        await Promise.all([
+            loadSpreadData(),
+            loadPrefundData(),
+            loadMarketData(),
+        ]);
         isLoading = false;
     });
 
@@ -38,8 +45,17 @@
         }
     }
 
+    async function loadMarketData() {
+        try {
+            marketData = await getMarketComparison(spreadHours); // Reuse spreadHours for comparison
+        } catch (e) {
+            toast.error("Failed to load market context data");
+        }
+    }
+
     $: if (spreadHours) {
         loadSpreadData();
+        loadMarketData();
     }
 
     $: if (prefundDays) {
@@ -64,6 +80,70 @@
         </div>
     {:else}
         <div class="analytics-grid">
+            <!-- Market Price Comparison Section -->
+            <section class="analytics-section">
+                <div class="section-header">
+                    <div class="title-group">
+                        <span class="icon">🔍</span>
+                        <h3>Market Price Comparison (ALL)</h3>
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <AnalyticsChart
+                        title="Market Context Evolution"
+                        height={400}
+                        seriesData={[
+                            {
+                                label: "Bitkub",
+                                color: "#00d084",
+                                data: marketData
+                                    .filter((d) => d.source === "bitkub")
+                                    .map((d) => ({
+                                        time: d.time,
+                                        value: d.price,
+                                    })),
+                            },
+                            {
+                                label: "Binance TH",
+                                color: "#f3ba2f",
+                                data: marketData
+                                    .filter((d) => d.source === "binance_th")
+                                    .map((d) => ({
+                                        time: d.time,
+                                        value: d.price,
+                                    })),
+                            },
+                            {
+                                label: "Maxbit",
+                                color: "#3c4be8",
+                                data: marketData
+                                    .filter((d) => d.source === "maxbit")
+                                    .map((d) => ({
+                                        time: d.time,
+                                        value: d.price,
+                                    })),
+                            },
+                            {
+                                label: "FX (Spot)",
+                                color: "#94a3b8",
+                                data: marketData
+                                    .filter((d) => d.source === "fx")
+                                    .map((d) => ({
+                                        time: d.time,
+                                        value: d.price,
+                                    })),
+                            },
+                        ]}
+                    />
+                </div>
+                <div class="insight-box">
+                    <p>
+                        🔍 <strong>Market Context:</strong> เปรียบเทียบราคาจากทุกแหล่งข้อมูลเพื่อให้เห็นความแตกต่างของราคาในแต่ละตลาด
+                    </p>
+                </div>
+            </section>
+
             <!-- Spread Trend Section -->
             <section class="analytics-section">
                 <div class="section-header">

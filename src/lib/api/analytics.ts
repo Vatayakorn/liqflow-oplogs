@@ -15,6 +15,12 @@ export interface PrefundDataPoint {
     date: string;
 }
 
+export interface MarketComparisonPoint {
+    time: number;
+    source: string;
+    price: number;
+}
+
 /**
  * Fetch Spread Trend for the last N hours
  */
@@ -67,5 +73,31 @@ export async function getPrefundHistory(days = 7): Promise<PrefundDataPoint[]> {
         current: Number(pt.avg_current),
         target: Number(pt.avg_target),
         date: pt.log_date
+    }));
+}
+
+/**
+ * Fetch Market Comparison for the last N hours
+ */
+export async function getMarketComparison(hours = 24): Promise<MarketComparisonPoint[]> {
+    const startTime = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+
+    const { data, error } = await supabase
+        .from('market_stats_1m')
+        .select('bucket, source, avg_price')
+        .gte('bucket', startTime)
+        .order('bucket', { ascending: true });
+
+    if (error) {
+        console.error('Error fetching market comparison:', error);
+        return [];
+    }
+
+    const timezoneOffsetSeconds = new Date().getTimezoneOffset() * -60;
+
+    return data.map(pt => ({
+        time: Math.floor(new Date(pt.bucket).getTime() / 1000) + timezoneOffsetSeconds,
+        source: pt.source,
+        price: Number(pt.avg_price)
     }));
 }
