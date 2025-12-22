@@ -36,10 +36,10 @@ export default defineConfig({
 				]
 			},
 			devOptions: {
-				enabled: true // enable PWA in dev for testing
-			},
-			workbox: {
-				globPatterns: ['**/*.{js,css,html,svg,png,ico,ttf,woff2}']
+				enabled: false,
+				suppressWarnings: true,
+				type: 'module',
+				navigateFallback: '/'
 			}
 		})
 	]
