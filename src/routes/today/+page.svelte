@@ -4,13 +4,9 @@
      * Main operation log entry page
      */
     import { onMount } from "svelte";
-    import SessionForm from "$lib/components/SessionForm.svelte";
     import SessionList from "$lib/components/SessionList.svelte";
     import {
         listSessionsByDate,
-        createSession,
-        uploadImages,
-        uploadAudio, // Added
         deleteSession,
         type OplogSession,
     } from "$lib/api/oplog";
@@ -22,8 +18,6 @@
     let selectedDate = new Date().toISOString().split("T")[0];
     let sessions: OplogSession[] = [];
     let isLoading = true;
-    let isSaving = false;
-    let sessionFormRef: SessionForm;
     let supabaseReady = false;
 
     // Check Supabase configuration on mount
@@ -49,90 +43,6 @@
             toast.error("Failed to load sessions");
         } finally {
             isLoading = false;
-        }
-    }
-
-    async function handleFormSubmit(event: CustomEvent) {
-        const formData = event.detail;
-        isSaving = true;
-
-        try {
-            // Create session with new structure
-            const session = await createSession({
-                log_date: selectedDate,
-                shift: formData.shift || "A", // Added shift with fallback
-                start_time: formData.start_time,
-                end_time: formData.end_time || undefined,
-                broker: formData.broker,
-                trader: formData.trader,
-                head: formData.head,
-                recorder: formData.recorder,
-                fx_rate: formData.fx_rate
-                    ? parseFloat(formData.fx_rate)
-                    : undefined,
-                fx_notes: formData.fx_notes,
-                btz_bid: formData.btz_bid,
-                btz_ask: formData.btz_ask,
-                btz_notes: formData.btz_notes,
-                exchange1: formData.exchange1,
-                exchange1_price: formData.exchange1_price,
-                exchange2: formData.exchange2,
-                exchange2_price: formData.exchange2_price,
-                exchange_diff: formData.exchange_diff,
-                exchange_higher: formData.exchange_higher,
-                exchange_notes: formData.exchange_notes,
-                otc_transactions: formData.otc_transactions,
-                prefund_current: formData.prefund_current,
-                prefund_target: formData.prefund_target,
-                matching_notes: formData.matching_notes,
-                otc_notes: formData.otc_notes,
-                note: formData.note,
-                market_context: formData.market_context, // Added
-            });
-
-            // Upload images if any
-            if (formData.images && formData.images.length > 0) {
-                await uploadImages(
-                    selectedDate,
-                    formData.shift || "A", // Use selected shift or default to A
-                    session.id,
-                    formData.images,
-                );
-            }
-
-            // Upload audio if any
-            if (formData.audio && formData.audio.length > 0) {
-                await uploadAudio(
-                    selectedDate,
-                    formData.shift || "A", // Use selected shift or default to A
-                    session.id,
-                    formData.audio,
-                );
-            }
-
-            toast.success("Session saved successfully!");
-
-            // Reset form
-            sessionFormRef?.reset();
-
-            // Reload sessions
-            await loadSessions();
-
-            // Scroll to new session
-            setTimeout(() => {
-                const element = document.getElementById(
-                    `session-${session.id}`,
-                );
-                element?.scrollIntoView({
-                    behavior: "smooth",
-                    block: "center",
-                });
-            }, 100);
-        } catch (error) {
-            console.error("Failed to save session:", error);
-            toast.error("Failed to save session");
-        } finally {
-            isSaving = false;
         }
     }
 
@@ -193,15 +103,6 @@ PUBLIC_SUPABASE_ANON_KEY=your-anon-key</pre>
     {/if}
 
     <div class="content-grid">
-        <section class="form-section">
-            <h2>New Session</h2>
-            <SessionForm
-                bind:this={sessionFormRef}
-                disabled={isSaving}
-                on:submit={handleFormSubmit}
-            />
-        </section>
-
         <section class="sessions-section">
             <div class="section-header">
                 <h2>Sessions</h2>
