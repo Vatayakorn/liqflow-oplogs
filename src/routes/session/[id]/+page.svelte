@@ -12,17 +12,22 @@
     import MarketChart from "$lib/components/MarketChart.svelte";
     import { getMarketDataRange, type MarketDataPoint } from "$lib/api/market";
     import { combineDateTime, addHours } from "$lib/utils/date";
+    import PrefundTracker from "$lib/components/PrefundTracker.svelte";
 
     $: sessionId = $page.params.id;
 
     let session: OplogSession | null = null;
     let isLoading = true;
+    let isExporting = false;
     let supabaseReady = false;
 
     // Chart Data
     let marketData: Record<string, MarketDataPoint[]> = {};
     let chartLoading = false;
     let availableSources: string[] = [];
+
+    $: bitkubBook = session?.market_context?.bitkub;
+    $: binanceBook = session?.market_context?.binanceTH;
 
     const sourceColors: Record<string, string> = {
         bitkub: "#27AE60", // Green
@@ -50,6 +55,7 @@
     async function loadSession() {
         isLoading = true;
         try {
+            if (!sessionId) return;
             session = await getSession(sessionId);
             if (!session) {
                 toast.error("Session not found");
@@ -204,6 +210,50 @@
         if (!name) return "Exchange";
         return exchangeDisplayNames[name] || name;
     }
+
+    async function exportToPDF() {
+        if (!session) return;
+
+        const element = document.querySelector(
+            ".session-content",
+        ) as HTMLElement;
+        if (!element) return;
+
+        isExporting = true;
+        document.body.classList.add("exporting-pdf");
+
+        try {
+            toast.info("Preparing PDF...");
+            // @ts-ignore
+            const html2pdf = (await import("html2pdf.js")).default;
+
+            const opt = {
+                margin: [10, 10, 10, 10] as [number, number, number, number],
+                filename: `Shift_${session.shift}_${new Date().toISOString().split("T")[0]}.pdf`,
+                image: { type: "jpeg" as const, quality: 0.98 },
+                html2canvas: {
+                    scale: 2,
+                    useCORS: true,
+                    logging: false,
+                    windowWidth: 1200,
+                },
+                jsPDF: {
+                    unit: "mm",
+                    format: "a4",
+                    orientation: "portrait" as const,
+                },
+            };
+
+            await html2pdf().set(opt).from(element).save();
+            toast.success("PDF exported successfully");
+        } catch (error) {
+            console.error("PDF Export failed:", error);
+            toast.error("Failed to export PDF");
+        } finally {
+            isExporting = false;
+            document.body.classList.remove("exporting-pdf");
+        }
+    }
 </script>
 
 <svelte:head>
@@ -222,6 +272,29 @@
                 <path d="M15 18l-6-6 6-6" />
             </svg>
             <span>Back</span>
+        </button>
+
+        <button
+            class="export-btn"
+            on:click={exportToPDF}
+            disabled={isExporting}
+        >
+            {#if isExporting}
+                <div class="spinner-tiny"></div>
+                <span>Exporting...</span>
+            {:else}
+                <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                >
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                <span>Export PDF</span>
+            {/if}
         </button>
     </header>
 
@@ -300,7 +373,15 @@
 
             {#if session.fx_rate}
                 <div class="detail-card">
-                    <h3>FX Section</h3>
+                    <div class="card-header-with-time">
+                        <h3>FX Section</h3>
+                        {#if session.market_context?.fxFetchTime}
+                            <span class="header-time"
+                                >Fetched: {session.market_context
+                                    .fxFetchTime}</span
+                            >
+                        {/if}
+                    </div>
                     <div class="detail-grid">
                         <div class="detail-item">
                             <span class="label">Spot Rate</span>
@@ -321,7 +402,15 @@
 
             {#if session.btz_bid || session.btz_ask}
                 <div class="detail-card">
-                    <h3>Broker (BTZ/Maxbit)</h3>
+                    <div class="card-header-with-time">
+                        <h3>Broker (BTZ/Maxbit)</h3>
+                        {#if session.market_context?.brokerFetchTime}
+                            <span class="header-time"
+                                >Fetched: {session.market_context
+                                    .brokerFetchTime}</span
+                            >
+                        {/if}
+                    </div>
                     <div class="detail-grid">
                         <div class="detail-item">
                             <span class="label">BID</span>
@@ -343,7 +432,15 @@
 
             {#if session.exchange1 || session.exchange2}
                 <div class="detail-card">
-                    <h3>Exchange Comparison</h3>
+                    <div class="card-header-with-time">
+                        <h3>Exchange Comparison</h3>
+                        {#if session.market_context?.exchangeFetchTime}
+                            <span class="header-time"
+                                >Fetched: {session.market_context
+                                    .exchangeFetchTime}</span
+                            >
+                        {/if}
+                    </div>
                     <div class="detail-grid">
                         <div class="detail-item">
                             <span class="label"
@@ -370,6 +467,130 @@
                             >
                         </div>
                     </div>
+
+                    <!-- Historical Order Book Depth -->
+                    {#if bitkubBook || binanceBook}
+                        <div class="depth-preview-container">
+                            <div class="depth-preview-header">
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <path
+                                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                                    />
+                                </svg>
+                                <span>Snapshot Depth (Top 5)</span>
+                            </div>
+                            <div class="order-book-container">
+                                {#if bitkubBook}
+                                    <div class="order-book">
+                                        <div class="order-book-header bitkub">
+                                            Bitkub
+                                        </div>
+                                        <div class="order-book-columns">
+                                            <div class="order-book-column bids">
+                                                <div class="column-header">
+                                                    BID
+                                                </div>
+                                                {#each bitkubBook.bids.slice(0, 5) as bid, i}
+                                                    <div
+                                                        class="order-row bid"
+                                                        style="opacity: {1 -
+                                                            i * 0.15}"
+                                                    >
+                                                        <span class="price"
+                                                            >{bid.price.toFixed(
+                                                                2,
+                                                            )}</span
+                                                        >
+                                                        <span class="amount"
+                                                            >{bid.amount.toLocaleString()}</span
+                                                        >
+                                                    </div>
+                                                {/each}
+                                            </div>
+                                            <div class="order-book-column asks">
+                                                <div class="column-header">
+                                                    ASK
+                                                </div>
+                                                {#each bitkubBook.asks.slice(0, 5) as ask, i}
+                                                    <div
+                                                        class="order-row ask"
+                                                        style="opacity: {1 -
+                                                            i * 0.15}"
+                                                    >
+                                                        <span class="price"
+                                                            >{ask.price.toFixed(
+                                                                2,
+                                                            )}</span
+                                                        >
+                                                        <span class="amount"
+                                                            >{ask.amount.toLocaleString()}</span
+                                                        >
+                                                    </div>
+                                                {/each}
+                                            </div>
+                                        </div>
+                                    </div>
+                                {/if}
+
+                                {#if binanceBook}
+                                    <div class="order-book">
+                                        <div class="order-book-header binance">
+                                            BinanceTH
+                                        </div>
+                                        <div class="order-book-columns">
+                                            <div class="order-book-column bids">
+                                                <div class="column-header">
+                                                    BID
+                                                </div>
+                                                {#each binanceBook.bids.slice(0, 5) as bid, i}
+                                                    <div
+                                                        class="order-row bid"
+                                                        style="opacity: {1 -
+                                                            i * 0.15}"
+                                                    >
+                                                        <span class="price"
+                                                            >{bid.price.toFixed(
+                                                                2,
+                                                            )}</span
+                                                        >
+                                                        <span class="amount"
+                                                            >{bid.amount.toLocaleString()}</span
+                                                        >
+                                                    </div>
+                                                {/each}
+                                            </div>
+                                            <div class="order-book-column asks">
+                                                <div class="column-header">
+                                                    ASK
+                                                </div>
+                                                {#each binanceBook.asks.slice(0, 5) as ask, i}
+                                                    <div
+                                                        class="order-row ask"
+                                                        style="opacity: {1 -
+                                                            i * 0.15}"
+                                                    >
+                                                        <span class="price"
+                                                            >{ask.price.toFixed(
+                                                                2,
+                                                            )}</span
+                                                        >
+                                                        <span class="amount"
+                                                            >{ask.amount.toLocaleString()}</span
+                                                        >
+                                                    </div>
+                                                {/each}
+                                            </div>
+                                        </div>
+                                    </div>
+                                {/if}
+                            </div>
+                        </div>
+                    {/if}
                     {#if session.exchange_notes}
                         <div class="notes-box">
                             <span class="label">Exchange Notes:</span>
@@ -417,15 +638,11 @@
                         </div>
                     {/if}
 
-                    <div class="detail-grid" style="margin-top: 1rem;">
-                        <div class="detail-item">
-                            <span class="label">Prefund Status</span>
-                            <span class="value">
-                                {session.prefund_current?.toLocaleString() || 0}
-                                / {session.prefund_target?.toLocaleString() ||
-                                    0}
-                            </span>
-                        </div>
+                    <div class="prefund-section" style="margin-top: 1.5rem;">
+                        <PrefundTracker
+                            current={session.prefund_current || 0}
+                            target={session.prefund_target || 760000}
+                        />
                     </div>
 
                     {#if session.matching_notes}
@@ -539,6 +756,46 @@
                 </div>
             {/if}
 
+            {#if session.audio && session.audio.length > 0}
+                <div class="detail-card">
+                    <h3>Audio Evidence ({session.audio.length})</h3>
+                    <div class="audio-list">
+                        {#each session.audio as aud (aud.id)}
+                            <div class="audio-item">
+                                <div class="audio-info">
+                                    <span class="audio-icon">🎙️</span>
+                                    <span class="audio-date"
+                                        >{new Date(
+                                            aud.created_at,
+                                        ).toLocaleTimeString("th-TH", {
+                                            hour: "2-digit",
+                                            minute: "2-digit",
+                                        })}</span
+                                    >
+                                </div>
+                                {#if aud.notes}
+                                    <div class="audio-notes-display">
+                                        <strong>Note:</strong>
+                                        {aud.notes}
+                                    </div>
+                                {/if}
+                                <audio
+                                    src={aud.public_url}
+                                    controls
+                                    class="detail-audio-player"
+                                ></audio>
+                                {#if aud.transcript}
+                                    <div class="transcript-box">
+                                        <strong>AI Transcript:</strong>
+                                        <p>{aud.transcript}</p>
+                                    </div>
+                                {/if}
+                            </div>
+                        {/each}
+                    </div>
+                </div>
+            {/if}
+
             <div class="session-footer">
                 <span class="created-at">
                     {new Date(session.created_at).toLocaleString()}
@@ -561,6 +818,7 @@
     .page-header {
         display: flex;
         align-items: center;
+        justify-content: space-between;
     }
 
     .back-btn {
@@ -654,6 +912,29 @@
         color: var(--color-text-tertiary);
         text-transform: uppercase;
         letter-spacing: 0.02em;
+    }
+
+    .card-header-with-time {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        margin-bottom: 0.75rem;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .card-header-with-time h3 {
+        margin-bottom: 0;
+    }
+
+    .header-time {
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: var(--color-text-tertiary);
+        background: var(--color-bg-secondary);
+        padding: 2px 8px;
+        border-radius: 4px;
+        border: 1px solid var(--color-border-light);
     }
 
     .detail-grid {
@@ -895,5 +1176,265 @@
         color: var(--color-text-tertiary);
         font-size: 0.9375rem;
         border: 1px dashed var(--color-border-light);
+    }
+
+    .export-btn {
+        display: flex;
+        align-items: center;
+        gap: 0.375rem;
+        padding: 0.5rem 0.875rem;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        background: var(--color-primary);
+        color: white;
+        border: none;
+        border-radius: 100px;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+
+    .export-btn:hover {
+        background: #0066d6;
+    }
+
+    .export-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .export-btn svg {
+        width: 1rem;
+        height: 1rem;
+    }
+
+    .spinner-tiny {
+        width: 0.875rem;
+        height: 0.875rem;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-top-color: white;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+    }
+
+    /* PDF Export Styles */
+    :global(body.exporting-pdf) .page-header,
+    :global(body.exporting-pdf) .delete-btn,
+    :global(body.exporting-pdf) .export-btn {
+        display: none !important;
+    }
+
+    :global(body.exporting-pdf) .session-content {
+        background: white !important;
+    }
+
+    :global(body.exporting-pdf) .detail-card,
+    :global(body.exporting-pdf) .chart-wrapper,
+    :global(body.exporting-pdf) .charts-section,
+    :global(body.exporting-pdf) .depth-preview-container {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+
+    /* Order Book Styles */
+    .depth-preview-container {
+        margin-top: 1.5rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--color-border-light);
+    }
+
+    .depth-preview-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.75rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--color-text-tertiary);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .depth-preview-header svg {
+        width: 0.875rem;
+        height: 0.875rem;
+    }
+
+    .order-book-container {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+    }
+
+    @media (max-width: 640px) {
+        .order-book-container {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .order-book {
+        border: 1px solid var(--color-border-light);
+        border-radius: 10px;
+        overflow: hidden;
+        background: var(--color-bg);
+    }
+
+    .order-book-header {
+        padding: 0.5rem;
+        font-size: 0.6875rem;
+        font-weight: 700;
+        text-align: center;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .order-book-header.bitkub {
+        background: linear-gradient(135deg, #00c767, #009d51);
+        color: white;
+    }
+
+    .order-book-header.binance {
+        background: linear-gradient(135deg, #b45309, #f0b90b);
+        color: #1a1a1a;
+    }
+
+    .order-book-columns {
+        display: flex;
+    }
+
+    .order-book-column {
+        flex: 1;
+        padding: 0.375rem;
+    }
+
+    .order-book-column.bids {
+        background: rgba(52, 199, 89, 0.02);
+        border-right: 1px solid var(--color-border-light);
+    }
+
+    .order-book-column.asks {
+        background: rgba(255, 59, 48, 0.02);
+    }
+
+    .column-header {
+        font-size: 0.625rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--color-text-tertiary);
+        padding-bottom: 0.25rem;
+        text-align: center;
+    }
+
+    .order-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.25rem 0.375rem;
+        font-size: 0.75rem;
+        font-family: var(--font-family-mono, "SF Mono", monospace);
+    }
+
+    .order-row.bid .price {
+        color: #00c767;
+        font-weight: 500;
+    }
+    .order-row.ask .price {
+        color: #ff3b30;
+        font-weight: 500;
+    }
+    .order-row .amount {
+        color: var(--color-text-secondary);
+        opacity: 0.8;
+    }
+
+    /* Audio Styles */
+    .audio-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .audio-item {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        padding: 0.75rem;
+        background: var(--color-bg-secondary);
+        border-radius: 10px;
+        border: 1px solid var(--color-border-light);
+    }
+
+    .audio-info {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .audio-icon {
+        font-size: 1.125rem;
+    }
+
+    .audio-date {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--color-text-tertiary);
+    }
+
+    .detail-audio-player {
+        width: 100%;
+        height: 32px;
+    }
+
+    .audio-notes-display {
+        font-size: 0.8125rem;
+        color: var(--color-text);
+        background: rgba(0, 122, 255, 0.05);
+        padding: 0.5rem 0.75rem;
+        border-radius: 6px;
+        border-left: 3px solid var(--color-primary);
+    }
+
+    .audio-notes-display strong {
+        color: var(--color-primary);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        margin-right: 4px;
+    }
+
+    .transcript-box {
+        margin-top: 0.25rem;
+        padding: 0.75rem;
+        background: var(--color-bg);
+        border-radius: 8px;
+        border-left: 3px solid var(--color-success);
+    }
+
+    .transcript-box strong {
+        display: block;
+        font-size: 0.6875rem;
+        text-transform: uppercase;
+        color: var(--color-success);
+        margin-bottom: 4px;
+    }
+
+    .transcript-box p {
+        margin: 0;
+        font-size: 0.875rem;
+        line-height: 1.5;
+        color: var(--color-text-secondary);
+    }
+
+    :global(body.exporting-pdf) .charts-grid {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 1.5rem !important;
+    }
+
+    :global(body.exporting-pdf) .chart-wrapper {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    :global(body.exporting-pdf) .session-footer {
+        page-break-before: auto !important;
     }
 </style>

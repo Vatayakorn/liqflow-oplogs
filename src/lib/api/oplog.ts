@@ -73,6 +73,7 @@ export interface OplogSessionAudio {
     public_url: string;
     duration_seconds: number | null;
     transcript: string | null;
+    notes: string | null;
     created_at: string;
 }
 
@@ -418,11 +419,12 @@ export async function uploadAudio(
     log_date: string,
     shift: string,
     session_id: string,
-    files: File[]
+    audioItems: { file: File, notes: string }[]
 ): Promise<OplogSessionAudio[]> {
     const uploadedAudio: OplogSessionAudio[] = [];
 
-    for (const file of files) {
+    for (const item of audioItems) {
+        const { file, notes } = item;
         // Generate unique filename
         const timestamp = Date.now();
         const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
@@ -464,7 +466,8 @@ export async function uploadAudio(
                 session_id,
                 storage_path: path,
                 public_url: urlData.publicUrl,
-                duration_seconds: null // We could pass this if we had it
+                duration_seconds: null,
+                notes: notes || null
             })
             .select()
             .single();

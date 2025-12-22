@@ -294,7 +294,8 @@ CREATE TABLE IF NOT EXISTS oplog_session_audio (
     storage_path TEXT NOT NULL,
     public_url TEXT NOT NULL,
     duration_seconds NUMERIC NULL,
-    transcript TEXT NULL
+    transcript TEXT NULL,
+    notes TEXT NULL
 );
 
 -- RLS

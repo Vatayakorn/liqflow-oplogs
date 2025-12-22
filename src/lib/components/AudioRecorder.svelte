@@ -8,7 +8,7 @@
     export let disabled = false;
 
     const dispatch = createEventDispatcher<{
-        change: File[];
+        change: { file: File; notes: string }[];
         transcribe: File;
     }>();
 
@@ -23,6 +23,7 @@
         id: string; // url
         file: File;
         durationFormatted: string;
+        notes: string;
     }
     let recordings: AudioPreview[] = [];
 
@@ -55,12 +56,16 @@
                             id: url,
                             file: file,
                             durationFormatted: formatTime(recordingTime),
+                            notes: "",
                         },
                     ];
 
                     dispatch(
                         "change",
-                        recordings.map((r) => r.file),
+                        recordings.map((r) => ({
+                            file: r.file,
+                            notes: r.notes,
+                        })),
                     );
                     chunks = [];
                     stream.getTracks().forEach((track) => track.stop());
@@ -96,7 +101,14 @@
         recordings = recordings.filter((_, i) => i !== index);
         dispatch(
             "change",
-            recordings.map((r) => r.file),
+            recordings.map((r) => ({ file: r.file, notes: r.notes })),
+        );
+    }
+
+    function handleNotesChange() {
+        dispatch(
+            "change",
+            recordings.map((r) => ({ file: r.file, notes: r.notes })),
         );
     }
 
@@ -161,7 +173,17 @@
                         <span class="rec-duration">{rec.durationFormatted}</span
                         >
                     </div>
-                    <audio src={rec.id} controls class="audio-player"></audio>
+                    <div class="rec-main">
+                        <audio src={rec.id} controls class="audio-player"
+                        ></audio>
+                        <input
+                            type="text"
+                            bind:value={recordings[i].notes}
+                            placeholder="Add note for this recording..."
+                            on:input={handleNotesChange}
+                            class="notes-input"
+                        />
+                    </div>
                     <button
                         type="button"
                         class="transcribe-btn-small"
@@ -290,9 +312,33 @@
         color: var(--color-text-secondary);
     }
 
-    .audio-player {
+    .rec-main {
         flex: 1;
-        height: 2rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .audio-player {
+        width: 100%;
+        height: 1.75rem;
+    }
+
+    .notes-input {
+        width: 100%;
+        padding: 4px 8px;
+        font-size: 0.75rem;
+        border: 1px solid var(--color-border-light);
+        border-radius: 4px;
+        background: var(--color-bg);
+        color: var(--color-text);
+        transition: all 0.2s;
+    }
+
+    .notes-input:focus {
+        outline: none;
+        border-color: var(--color-primary);
+        box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.1);
     }
 
     .delete-btn {

@@ -3,7 +3,7 @@
      * Session Form Component (Redesigned)
      * Structured form for trading operation logs
      */
-    import { createEventDispatcher } from "svelte";
+    import { createEventDispatcher, tick } from "svelte";
     import CollapsibleSection from "./CollapsibleSection.svelte";
     import OtcTransactionInput from "./OtcTransactionInput.svelte";
     import PrefundTracker from "./PrefundTracker.svelte";
@@ -27,6 +27,7 @@
         type OrderBook,
     } from "$lib/api/marketData";
     import { fetchTodayOtcTransactions } from "$lib/api/otcApi";
+    import { toast } from "$lib/stores/toast";
 
     export let disabled = false;
 
@@ -130,7 +131,60 @@
     // === General ===
     let generalNotes = "";
     let images: File[] = [];
-    let audioFiles: File[] = []; // Audio recordings
+    let audioFiles: { file: File; notes: string }[] = []; // Audio recordings with notes
+    let orderBookContainer: HTMLElement;
+    let isCapturing = false;
+
+    // Fetch Timestamps
+    let fxFetchTime = "";
+    let brokerFetchTime = "";
+    let exchangeFetchTime = "";
+
+    function getCurrentTimeStr() {
+        return new Date().toLocaleTimeString("th-TH", {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+        });
+    }
+
+    async function snapshotExchangeUI() {
+        if (!orderBookContainer) {
+            toast.error("Order book not visible");
+            return;
+        }
+
+        isCapturing = true;
+        await tick(); // Wait for timestamp to show up in DOM
+
+        try {
+            // @ts-ignore
+            const html2canvas = (await import("html2canvas")).default;
+            const canvas = await html2canvas(orderBookContainer, {
+                backgroundColor: "#ffffff",
+                scale: 2,
+                logging: false,
+                useCORS: true,
+            });
+
+            canvas.toBlob((blob) => {
+                if (blob) {
+                    const file = new File(
+                        [blob],
+                        `exchange_snap_${Date.now()}.png`,
+                        { type: "image/png" },
+                    );
+                    images = [...images, file];
+                    toast.success("Snapshot captured and added to photos!");
+                }
+                isCapturing = false;
+            }, "image/png");
+        } catch (error) {
+            console.error("Capture failed:", error);
+            toast.error("Capture failed. Is order book loaded?");
+            isCapturing = false;
+        }
+    }
 
     let isSubmitting = false;
 
@@ -145,6 +199,7 @@
         try {
             const data = await fetchFxRate();
             fxRate = data.rate.toFixed(3);
+            fxFetchTime = getCurrentTimeStr();
         } catch (error) {
             console.error("Failed to fetch FX rate:", error);
         } finally {
@@ -159,6 +214,7 @@
             const data = await fetchMaxbitPrice();
             btzBid = data.bid.toFixed(3);
             btzAsk = data.ask.toFixed(3);
+            brokerFetchTime = getCurrentTimeStr();
         } catch (error) {
             console.error("Failed to fetch broker prices:", error);
         } finally {
@@ -199,6 +255,7 @@
                 exchangeDiff = diff.diff;
                 exchangeHigher = diff.higher || "";
             }
+            exchangeFetchTime = getCurrentTimeStr();
         } catch (error) {
             console.error("Failed to fetch exchange prices:", error);
         } finally {
@@ -206,7 +263,9 @@
         }
     }
 
-    function handleAudioChange(event: CustomEvent<File[]>) {
+    function handleAudioChange(
+        event: CustomEvent<{ file: File; notes: string }[]>,
+    ) {
         audioFiles = event.detail;
     }
 
@@ -328,7 +387,14 @@
 
         try {
             // Fetch latest market context for the record
-            const marketContext = await fetchAllMarketData();
+            const context = await fetchAllMarketData();
+            const marketContext = {
+                ...context,
+                fxFetchTime,
+                brokerFetchTime,
+                exchangeFetchTime,
+                snapTime: getCurrentTimeStr(),
+            };
 
             dispatch("submit", {
                 // Time
@@ -417,6 +483,9 @@
         generalNotes = "";
         images = [];
         audioFiles = [];
+        fxFetchTime = "";
+        brokerFetchTime = "";
+        exchangeFetchTime = "";
     }
 </script>
 
@@ -533,6 +602,9 @@
     <!-- FX Section -->
     <CollapsibleSection title="FX (Spot Rate)" icon="📊">
         <div class="section-action">
+            {#if fxFetchTime}
+                <span class="fetch-time">Drawn at: {fxFetchTime}</span>
+            {/if}
             <button
                 type="button"
                 class="fetch-btn"
@@ -569,6 +641,9 @@
     <!-- Broker Section -->
     <CollapsibleSection title="Broker (Maxbit)" icon="🏦">
         <div class="section-action">
+            {#if brokerFetchTime}
+                <span class="fetch-time">Drawn at: {brokerFetchTime}</span>
+            {/if}
             <button
                 type="button"
                 class="fetch-btn"
@@ -619,23 +694,53 @@
     <!-- Exchange Section -->
     <CollapsibleSection title="Exchange (Order Book)" icon="📈">
         <div class="section-action">
-            <button
-                type="button"
-                class="fetch-btn"
-                on:click={fetchExchangePrices}
-                disabled={disabled || isSubmitting || isFetchingExchange}
-            >
-                {#if isFetchingExchange}
-                    ⏳ Loading...
-                {:else}
-                    🔄 Fetch Order Book
+            <div class="action-group">
+                {#if exchangeFetchTime}
+                    <span class="fetch-time">Drawn at: {exchangeFetchTime}</span
+                    >
                 {/if}
-            </button>
+                <button
+                    type="button"
+                    class="fetch-btn"
+                    on:click={fetchExchangePrices}
+                    disabled={disabled || isSubmitting || isFetchingExchange}
+                >
+                    {#if isFetchingExchange}
+                        ⏳ Loading...
+                    {:else}
+                        🔄 Fetch Order Book
+                    {/if}
+                </button>
+
+                {#if bitkubBook || binanceBook}
+                    <button
+                        type="button"
+                        class="snap-btn"
+                        on:click={snapshotExchangeUI}
+                        disabled={disabled || isCapturing}
+                    >
+                        {#if isCapturing}
+                            ⏳ Snapping...
+                        {:else}
+                            📸 Snap UI
+                        {/if}
+                    </button>
+                {/if}
+            </div>
         </div>
 
         <!-- Order Book Tables -->
         {#if bitkubBook || binanceBook}
-            <div class="order-book-container">
+            <div class="order-book-container" bind:this={orderBookContainer}>
+                {#if isCapturing}
+                    <div class="snapshot-header">
+                        <span class="app-name">Liqflow Order Book Snapshot</span
+                        >
+                        <span class="app-time"
+                            >{new Date().toLocaleString("th-TH")}</span
+                        >
+                    </div>
+                {/if}
                 <!-- Bitkub Order Book -->
                 <div class="order-book">
                     <div class="order-book-header bitkub">Bitkub</div>
@@ -1232,7 +1337,77 @@
 
     /* Fetch buttons */
     .section-action {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.5rem;
         margin-bottom: 0.75rem;
+    }
+
+    .fetch-time {
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: var(--color-text-tertiary);
+        background: rgba(0, 0, 0, 0.05);
+        padding: 2px 8px;
+        border-radius: 4px;
+    }
+
+    .action-group {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .snapshot-header {
+        grid-column: span 2;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 4px 8px;
+        background: #f8f9fa;
+        border-bottom: 2px solid var(--color-primary);
+        border-radius: 6px 6px 0 0;
+        margin-bottom: 8px;
+    }
+
+    .snapshot-header .app-name {
+        font-weight: 700;
+        color: var(--color-primary);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .snapshot-header .app-time {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--color-text-secondary);
+        font-family: var(--font-family-mono);
+    }
+
+    .snap-btn {
+        padding: 0.5rem 1rem;
+        background: #f0f0f5;
+        border: 1px solid #d1d1d6;
+        border-radius: 8px;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: #3a3a3c;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .snap-btn:hover:not(:disabled) {
+        background: #e5e5ea;
+        border-color: #c7c7cc;
+    }
+
+    .snap-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
     }
 
     .fetch-btn {
