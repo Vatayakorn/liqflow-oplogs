@@ -1,9 +1,11 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import basicSsl from '@vitejs/plugin-basic-ssl';
 
 export default defineConfig({
 	plugins: [
+		basicSsl(),
 		sveltekit(),
 		VitePWA({
 			registerType: 'prompt', // or 'autoUpdate' - sticking to plan which suggests ReloadPrompt

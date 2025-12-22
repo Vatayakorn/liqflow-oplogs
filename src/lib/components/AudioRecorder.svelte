@@ -17,6 +17,7 @@
     let isRecording = false;
     let recordingTime = 0;
     let timerInterval: any;
+    let mimeType = "audio/webm"; // Default
 
     // Stored recordings
     interface AudioPreview {
@@ -33,7 +34,21 @@
                 const stream = await navigator.mediaDevices.getUserMedia({
                     audio: true,
                 });
-                mediaRecorder = new MediaRecorder(stream);
+
+                // Detect supported mime type
+                if (MediaRecorder.isTypeSupported("audio/mp4")) {
+                    mimeType = "audio/mp4";
+                } else if (MediaRecorder.isTypeSupported("audio/webm")) {
+                    mimeType = "audio/webm";
+                } else {
+                    console.warn(
+                        "Neither audio/mp4 nor audio/webm supported. Defaulting to empty.",
+                    );
+                    mimeType = ""; // Let browser decide default
+                }
+
+                const options = mimeType ? { mimeType } : undefined;
+                mediaRecorder = new MediaRecorder(stream, options);
                 chunks = [];
 
                 mediaRecorder.ondataavailable = (e) => {
@@ -41,11 +56,14 @@
                 };
 
                 mediaRecorder.onstop = (e) => {
-                    const blob = new Blob(chunks, { type: "audio/webm" }); // or audio/mp4 if supported
+                    const blob = new Blob(chunks, {
+                        type: mimeType || "audio/mp4",
+                    });
                     const timestamp = new Date().getTime();
-                    const filename = `recording_${timestamp}.webm`;
+                    const ext = mimeType.includes("mp4") ? "mp4" : "webm";
+                    const filename = `recording_${timestamp}.${ext}`;
                     const file = new File([blob], filename, {
-                        type: "audio/webm",
+                        type: mimeType || "audio/mp4",
                     });
 
                     const url = URL.createObjectURL(blob);
@@ -84,7 +102,10 @@
                 alert("Could not access microphone.");
             }
         } else {
-            alert("getUserMedia not supported on your browser!");
+            console.error("Navigator.mediaDevices not supported");
+            alert(
+                "Recording not supported in this browser. Please ensure you are using HTTPS or accessing via localhost.",
+            );
         }
     }
 
