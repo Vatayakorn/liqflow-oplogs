@@ -36,11 +36,9 @@ function getSupabaseClient(): SupabaseClient {
 // Export a getter function and a lazy-loaded client
 export const getSupabase = getSupabaseClient;
 
-// For backwards compatibility, export supabase directly
-// Will be initialized when first accessed in browser
-export const supabase = browser
-    ? getSupabaseClient()
-    : createClient('https://placeholder.supabase.co', 'placeholder-key');
+// Initialize Supabase client
+// This handles both client (browser) and server (Node.js) environments
+export const supabase = getSupabaseClient();
 
 /**
  * Check if Supabase is properly configured
