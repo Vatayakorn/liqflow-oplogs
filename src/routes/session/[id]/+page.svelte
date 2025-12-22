@@ -1032,6 +1032,7 @@
                                         <th>Customer</th>
                                         <th>Action</th>
                                         <th>Amount</th>
+                                        <th>Price</th>
                                         <th>Total (THB)</th>
                                         <th>Status</th>
                                     </tr>
@@ -1046,6 +1047,10 @@
                                             <td
                                                 >{tx.amount.toLocaleString()}
                                                 {tx.currency}</td
+                                            >
+                                            <td class="price"
+                                                >{tx.rate?.toFixed(2) ||
+                                                    "-"}</td
                                             >
                                             <td
                                                 >฿{tx.total?.toLocaleString() ||

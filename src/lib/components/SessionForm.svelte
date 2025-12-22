@@ -310,6 +310,26 @@
                 scale: 2,
                 logging: false,
                 useCORS: true,
+                windowWidth: 1200,
+                onclone: (clonedDoc: Document) => {
+                    // iOS Safari PWA fix: Force font rendering
+                    const container = clonedDoc.querySelector(
+                        ".order-book-container",
+                    ) as HTMLElement;
+                    if (container) {
+                        container.style.fontFamily =
+                            "-apple-system, BlinkMacSystemFont, sans-serif";
+                        container.style.webkitTextSizeAdjust = "100%";
+                    }
+                    // Force all numeric values to be visible
+                    const prices = clonedDoc.querySelectorAll(
+                        ".price, .amount",
+                    ) as NodeListOf<HTMLElement>;
+                    prices.forEach((el) => {
+                        el.style.whiteSpace = "nowrap";
+                        el.style.minWidth = "max-content";
+                    });
+                },
             });
 
             canvas.toBlob((blob) => {
@@ -348,6 +368,18 @@
                 scale: 2,
                 logging: false,
                 useCORS: true,
+                windowWidth: 1200,
+                onclone: (clonedDoc: Document) => {
+                    // iOS Safari PWA fix: Force font rendering
+                    const container = clonedDoc.querySelector(
+                        ".fx-snapshot-container",
+                    ) as HTMLElement;
+                    if (container) {
+                        container.style.fontFamily =
+                            "-apple-system, BlinkMacSystemFont, sans-serif";
+                        container.style.webkitTextSizeAdjust = "100%";
+                    }
+                },
             });
 
             canvas.toBlob((blob) => {
@@ -384,6 +416,18 @@
                 scale: 2,
                 logging: false,
                 useCORS: true,
+                windowWidth: 1200,
+                onclone: (clonedDoc: Document) => {
+                    // iOS Safari PWA fix: Force font rendering
+                    const container = clonedDoc.querySelector(
+                        ".broker-snapshot-container",
+                    ) as HTMLElement;
+                    if (container) {
+                        container.style.fontFamily =
+                            "-apple-system, BlinkMacSystemFont, sans-serif";
+                        container.style.webkitTextSizeAdjust = "100%";
+                    }
+                },
             });
 
             canvas.toBlob((blob) => {
@@ -1299,6 +1343,9 @@
                                     >{formatCurrency(tx.amount)}
                                     {tx.currency}</span
                                 >
+                                <span class="order-rate"
+                                    >@{tx.rate?.toFixed(2) || "-"}</span
+                                >
                                 <span class="order-total"
                                     >฿{formatCurrency(tx.total || 0)}</span
                                 >
@@ -2025,6 +2072,9 @@
 
     .order-row .price {
         font-weight: 600;
+        white-space: nowrap;
+        min-width: max-content;
+        -webkit-text-size-adjust: 100%;
     }
 
     .order-row.bid .price {
@@ -2038,6 +2088,9 @@
     .order-row .amount {
         color: var(--color-text-tertiary);
         font-size: 0.6875rem;
+        white-space: nowrap;
+        min-width: max-content;
+        -webkit-text-size-adjust: 100%;
     }
 
     /* Fetched OTC Orders Compact Styles */
@@ -2122,6 +2175,14 @@
     .order-time {
         font-size: 10px;
         color: var(--color-text-tertiary);
+        white-space: nowrap;
+    }
+
+    .order-rate {
+        color: var(--color-primary);
+        font-family: var(--font-family-mono, monospace);
+        font-weight: 600;
+        font-size: 0.6875rem;
         white-space: nowrap;
     }
 
