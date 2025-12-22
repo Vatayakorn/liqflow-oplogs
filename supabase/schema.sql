@@ -103,6 +103,43 @@ CREATE TABLE IF NOT EXISTS market_data (
     raw_data JSONB NULL
 );
 
+-- Minute-level statistical view (for Trend Charts)
+CREATE OR REPLACE VIEW market_stats_1m AS
+SELECT 
+    date_trunc('minute', created_at) AS bucket,
+    source,
+    symbol,
+    AVG(price) AS avg_price,
+    AVG(bid) AS avg_bid,
+    AVG(ask) AS avg_ask
+FROM market_data
+GROUP BY bucket, source, symbol;
+
+-- Spread Trend view (Bitkub vs BinanceTH)
+CREATE OR REPLACE VIEW spread_trend_1m AS
+SELECT 
+    b.bucket,
+    b.avg_price AS bitkub_price,
+    bn.avg_price AS binance_price,
+    (b.avg_price - bn.avg_price) AS spread,
+    ABS(b.avg_price - bn.avg_price) AS abs_spread
+FROM market_stats_1m b
+JOIN market_stats_1m bn ON b.bucket = bn.bucket
+WHERE b.source = 'bitkub' AND bn.source = 'binance_th';
+
+-- Prefund History view (Daily)
+CREATE OR REPLACE VIEW prefund_history_daily AS
+SELECT 
+    d.log_date,
+    AVG(s.prefund_current) as avg_current,
+    AVG(s.prefund_target) as avg_target,
+    MAX(s.prefund_current) as max_current,
+    MIN(s.prefund_current) as min_current
+FROM oplog_sessions s
+JOIN oplog_days d ON s.day_id = d.id
+GROUP BY d.log_date
+ORDER BY d.log_date ASC;
+
 -- Index for fast retrieval of latest data
 CREATE INDEX IF NOT EXISTS idx_market_data_source_created 
     ON market_data(source, created_at DESC);
