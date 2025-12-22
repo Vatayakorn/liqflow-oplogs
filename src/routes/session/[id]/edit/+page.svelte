@@ -1,0 +1,197 @@
+<script lang="ts">
+    import { onMount } from "svelte";
+    import { page } from "$app/stores";
+    import { goto } from "$app/navigation";
+    import SessionForm from "$lib/components/SessionForm.svelte";
+    import {
+        getSession,
+        updateSession,
+        type OplogSession,
+    } from "$lib/api/oplog";
+    import { toast } from "$lib/stores/toast";
+
+    let session: OplogSession | null = null;
+    let isLoading = true;
+
+    $: sessionId = $page.params.id;
+
+    onMount(async () => {
+        try {
+            session = await getSession(sessionId);
+            if (!session) {
+                toast.error("Session not found");
+                goto("/history");
+            }
+        } catch (error) {
+            console.error("Error loading session:", error);
+            toast.error("Failed to load session");
+            goto("/history");
+        } finally {
+            isLoading = false;
+        }
+    });
+
+    async function handleUpdate(event: CustomEvent<any>) {
+        if (!session) return;
+
+        const payload = event.detail;
+
+        try {
+            // We only update fields from the form, excluding images/audio which
+            // are handled separately if new files are provided.
+            const { images, audio, ...updateData } = payload;
+
+            await updateSession(session.id, updateData);
+            toast.success("Session updated successfully");
+            goto(`/session/${session.id}`);
+        } catch (error) {
+            console.error("Update error:", error);
+            toast.error("Failed to update session");
+        }
+    }
+
+    function handleCancel() {
+        if (session) {
+            goto(`/session/${session.id}`);
+        } else {
+            goto("/history");
+        }
+    }
+</script>
+
+<svelte:head>
+    <title>Edit Session - OpLogs</title>
+</svelte:head>
+
+<div class="edit-page">
+    <header class="page-header">
+        <div class="header-content">
+            <button class="back-btn" on:click={handleCancel}>
+                <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                >
+                    <path d="M19 12H5m0 0l7-7m-7 7l7 7" />
+                </svg>
+                Back
+            </button>
+            <h1>Edit Operation Log</h1>
+        </div>
+    </header>
+
+    {#if isLoading}
+        <div class="loading">
+            <div class="spinner"></div>
+            <p>Loading session data...</p>
+        </div>
+    {:else if session}
+        <div class="form-wrapper">
+            <SessionForm initialData={session} on:submit={handleUpdate} />
+
+            <div class="form-actions">
+                <button class="cancel-btn" on:click={handleCancel}>
+                    Cancel Changes
+                </button>
+            </div>
+        </div>
+    {/if}
+</div>
+
+<style>
+    .edit-page {
+        max-width: 800px;
+        margin: 0 auto;
+        padding-bottom: 5rem;
+    }
+
+    .page-header {
+        margin-bottom: 2rem;
+    }
+
+    .header-content {
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+    }
+
+    .back-btn {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--color-text-secondary);
+        background: var(--color-bg-secondary);
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+    }
+
+    .back-btn svg {
+        width: 1rem;
+        height: 1rem;
+    }
+
+    h1 {
+        margin: 0;
+        font-size: 1.75rem;
+        font-weight: 800;
+        color: var(--color-text);
+        letter-spacing: -0.02em;
+    }
+
+    .loading {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 5rem 0;
+        color: var(--color-text-tertiary);
+    }
+
+    .spinner {
+        width: 2.5rem;
+        height: 2.5rem;
+        border: 3px solid var(--color-separator);
+        border-top-color: var(--color-primary);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-bottom: 1rem;
+    }
+
+    @keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    .form-wrapper {
+        display: flex;
+        flex-direction: column;
+        gap: 2rem;
+    }
+
+    .form-actions {
+        display: flex;
+        justify-content: center;
+        padding-top: 1rem;
+    }
+
+    .cancel-btn {
+        padding: 0.75rem 1.5rem;
+        font-size: 0.9375rem;
+        font-weight: 600;
+        color: var(--color-danger);
+        background: transparent;
+        border: 1.5px solid var(--color-danger);
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .cancel-btn:hover {
+        background: rgba(255, 59, 48, 0.05);
+    }
+</style>

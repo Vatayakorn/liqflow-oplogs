@@ -14,6 +14,7 @@
     const dispatch = createEventDispatcher<{
         delete: string;
         view: string;
+        edit: string;
     }>();
 
     $: groupedSessions = groupSessionsByShift(sessions);
@@ -157,6 +158,14 @@
                                         dispatch("view", session.id)}
                                 >
                                     Details
+                                </button>
+                                <button
+                                    type="button"
+                                    class="action-btn"
+                                    on:click={() =>
+                                        dispatch("edit", session.id)}
+                                >
+                                    Edit
                                 </button>
                                 {#if showDelete}
                                     <button

@@ -39,8 +39,61 @@
     import { toast } from "$lib/stores/toast";
 
     export let disabled = false;
+    export let initialData: any = null;
 
     const dispatch = createEventDispatcher();
+
+    $: isEditing = !!initialData;
+
+    // Initialize only if initialData changes or on start
+    onMount(() => {
+        if (initialData) {
+            populateForm(initialData);
+        }
+    });
+
+    function populateForm(data: any) {
+        shift = data.shift || "";
+        startTime = data.start_time || "";
+        endTime = data.end_time || "";
+        broker = data.broker || "";
+        trader = data.trader || "";
+        head = data.head || "";
+        recorder = data.recorder || "";
+        fxRate = data.fx_rate?.toString() || "";
+        fxNotes = data.fx_notes || "";
+        btzBid = data.btz_bid?.toString() || "";
+        btzAsk = data.btz_ask?.toString() || "";
+        btzNotes = data.btz_notes || "";
+
+        exchange1 = data.exchange1 || "Bitkub";
+        if (data.exchange1_price) {
+            const [bid, ask] = data.exchange1_price.split("/");
+            exchange1Bid = bid || "";
+            exchange1Ask = ask || "";
+        }
+
+        exchange2 = data.exchange2 || "BinanceTH";
+        if (data.exchange2_price) {
+            const [bid, ask] = data.exchange2_price.split("/");
+            exchange2Bid = bid || "";
+            exchange2Ask = ask || "";
+        }
+
+        exchangeDiff = data.exchange_diff || "";
+        exchangeHigher = data.exchange_higher || "";
+        exchangeNotes = data.exchange_notes || "";
+
+        otcTransactions = data.otc_transactions || [];
+        prefundCurrent = data.prefund_current || 0;
+        prefundTarget = data.prefund_target || PREFUND_DEFAULTS.USDT; // Fallback to default
+        matchingNotes = data.matching_notes || "";
+        otcNotes = data.otc_notes || "";
+        generalNotes = data.note || "";
+
+        // We don't populate images and audioFiles as they are New files to upload
+        // In edit mode, parent should handle existing ones
+    }
 
     // === Time Slot ===
     let shift = ""; // A, B, C
@@ -1139,10 +1192,9 @@
             !head}
     >
         {#if isSubmitting}
-            <span class="spinner"></span>
-            Saving...
+            ⏳ {isEditing ? "Updating..." : "Saving..."}
         {:else}
-            💾 Save Session
+            {isEditing ? "Update Session" : "Create Session"}
         {/if}
     </button>
 </form>

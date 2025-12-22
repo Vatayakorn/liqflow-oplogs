@@ -274,6 +274,23 @@
             <span>Back</span>
         </button>
 
+        <a href="/session/{sessionId}/edit" class="edit-btn">
+            <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+            >
+                <path
+                    d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
+                />
+                <path
+                    d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"
+                />
+            </svg>
+            <span>Edit</span>
+        </a>
+
         <button
             class="export-btn"
             on:click={exportToPDF}
@@ -1436,5 +1453,32 @@
 
     :global(body.exporting-pdf) .session-footer {
         page-break-before: auto !important;
+    }
+
+    .edit-btn {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        font-family: var(--font-family-sans);
+        font-size: 0.9375rem;
+        font-weight: 600;
+        color: var(--color-primary);
+        text-decoration: none;
+        background: rgba(0, 122, 255, 0.08);
+        border-radius: 100px;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        margin-left: auto;
+        margin-right: 0.5rem;
+    }
+
+    .edit-btn:hover {
+        background: rgba(0, 122, 255, 0.15);
+        transform: translateY(-1px);
+    }
+
+    .edit-btn svg {
+        width: 1rem;
+        height: 1rem;
     }
 </style>

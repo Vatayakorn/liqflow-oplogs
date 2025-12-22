@@ -62,6 +62,10 @@
         goto(`/session/${event.detail}`);
     }
 
+    function handleEditSession(event: CustomEvent<string>) {
+        goto(`/session/${event.detail}/edit`);
+    }
+
     function formatDateDisplay(dateStr: string): string {
         return new Date(dateStr).toLocaleDateString("en-US", {
             weekday: "long",
@@ -106,6 +110,7 @@
             showDelete={true}
             on:delete={handleDeleteSession}
             on:view={handleViewSession}
+            on:edit={handleEditSession}
         />
     {/if}
 </div>

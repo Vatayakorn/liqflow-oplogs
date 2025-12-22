@@ -265,6 +265,27 @@ export async function getSession(session_id: string): Promise<OplogSession | nul
 }
 
 /**
+ * Update an existing session
+ * @param session_id - Session UUID
+ * @param payload - Partial session data
+ * @returns The updated session
+ */
+export async function updateSession(session_id: string, payload: Partial<OplogSession>): Promise<OplogSession> {
+    const { data, error } = await supabase
+        .from('oplog_sessions')
+        .update(payload)
+        .eq('id', session_id)
+        .select()
+        .single();
+
+    if (error) {
+        throw new Error(`Failed to update session: ${error.message}`);
+    }
+
+    return data;
+}
+
+/**
  * Delete a session and its images
  * @param session_id - Session UUID
  */

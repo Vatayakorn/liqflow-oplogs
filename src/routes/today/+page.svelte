@@ -151,6 +151,10 @@
     function handleViewSession(event: CustomEvent<string>) {
         goto(`/session/${event.detail}`);
     }
+
+    function handleEditSession(event: CustomEvent<string>) {
+        goto(`/session/${event.detail}/edit`);
+    }
 </script>
 
 <svelte:head>
@@ -222,6 +226,7 @@ PUBLIC_SUPABASE_ANON_KEY=your-anon-key</pre>
                     showDelete={true}
                     on:delete={handleDeleteSession}
                     on:view={handleViewSession}
+                    on:edit={handleEditSession}
                 />
             {/if}
         </section>
