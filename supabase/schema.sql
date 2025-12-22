@@ -107,6 +107,9 @@ CREATE TABLE IF NOT EXISTS market_data (
 CREATE INDEX IF NOT EXISTS idx_market_data_source_created 
     ON market_data(source, created_at DESC);
 
+-- ENABLE REALTIME: Run this command in Supabase SQL Editor
+-- ALTER PUBLICATION supabase_realtime ADD TABLE market_data;
+
 -- ============================================
 -- Table: oplog_session_images
 -- Multiple images per session

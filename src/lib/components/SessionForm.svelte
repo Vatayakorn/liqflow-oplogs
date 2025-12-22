@@ -3,7 +3,16 @@
      * Session Form Component (Redesigned)
      * Structured form for trading operation logs
      */
-    import { createEventDispatcher, tick } from "svelte";
+    import { createEventDispatcher, tick, onMount, onDestroy } from "svelte";
+    import {
+        marketFeed,
+        bitkubLive,
+        binanceTHLive,
+        maxbitLive,
+        fxLive,
+        isConnected,
+        lastUpdate,
+    } from "$lib/stores/marketFeed";
     import CollapsibleSection from "./CollapsibleSection.svelte";
     import OtcTransactionInput from "./OtcTransactionInput.svelte";
     import PrefundTracker from "./PrefundTracker.svelte";
@@ -139,6 +148,55 @@
     let fxFetchTime = "";
     let brokerFetchTime = "";
     let exchangeFetchTime = "";
+
+    onMount(() => {
+        marketFeed.connect();
+    });
+
+    onDestroy(() => {
+        marketFeed.disconnect();
+    });
+
+    // Reactive: Update UI when live data arrives
+    $: if ($fxLive) {
+        fxRate = $fxLive.rate.toFixed(3);
+        fxFetchTime = getCurrentTimeStr();
+    }
+
+    $: if ($maxbitLive) {
+        btzBid = $maxbitLive.bid.toFixed(3);
+        btzAsk = $maxbitLive.ask.toFixed(3);
+        brokerFetchTime = getCurrentTimeStr();
+    }
+
+    $: if ($bitkubLive) {
+        bitkubBook = $bitkubLive;
+        exchange1Bid = $bitkubLive.bestBid.toFixed(2);
+        exchange1Ask = $bitkubLive.bestAsk.toFixed(2);
+        updateExchangeDiff();
+        exchangeFetchTime = getCurrentTimeStr();
+    }
+
+    $: if ($binanceTHLive) {
+        binanceBook = $binanceTHLive;
+        exchange2Bid = $binanceTHLive.bestBid.toFixed(2);
+        exchange2Ask = $binanceTHLive.bestAsk.toFixed(2);
+        updateExchangeDiff();
+        exchangeFetchTime = getCurrentTimeStr();
+    }
+
+    function updateExchangeDiff() {
+        if (bitkubBook && binanceBook) {
+            const diff = calculatePriceDiff(
+                bitkubBook.bestBid,
+                binanceBook.bestBid,
+                "Bitkub",
+                "BinanceTH",
+            );
+            exchangeDiff = diff.diff;
+            exchangeHigher = diff.higher || "";
+        }
+    }
 
     function getCurrentTimeStr() {
         return new Date().toLocaleTimeString("th-TH", {
@@ -602,6 +660,9 @@
     <!-- FX Section -->
     <CollapsibleSection title="FX (Spot Rate)" icon="📊">
         <div class="section-action">
+            {#if $isConnected}
+                <span class="live-badge">🟢 Live</span>
+            {/if}
             {#if fxFetchTime}
                 <span class="fetch-time">Drawn at: {fxFetchTime}</span>
             {/if}
@@ -641,6 +702,9 @@
     <!-- Broker Section -->
     <CollapsibleSection title="Broker (Maxbit)" icon="🏦">
         <div class="section-action">
+            {#if $isConnected}
+                <span class="live-badge">🟢 Live</span>
+            {/if}
             {#if brokerFetchTime}
                 <span class="fetch-time">Drawn at: {brokerFetchTime}</span>
             {/if}
@@ -695,6 +759,9 @@
     <CollapsibleSection title="Exchange (Order Book)" icon="📈">
         <div class="section-action">
             <div class="action-group">
+                {#if $isConnected}
+                    <span class="live-badge">🟢 Live</span>
+                {/if}
                 {#if exchangeFetchTime}
                     <span class="fetch-time">Drawn at: {exchangeFetchTime}</span
                     >
@@ -1770,5 +1837,30 @@
         cursor: not-allowed;
         background: rgba(0, 0, 0, 0.05);
         color: var(--color-text-tertiary);
+    }
+
+    .live-badge {
+        font-size: 0.625rem;
+        font-weight: 700;
+        color: #10b981;
+        background: rgba(16, 185, 129, 0.1);
+        padding: 0.125rem 0.375rem;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        animation: pulse-live 2s infinite;
+    }
+
+    @keyframes pulse-live {
+        0% {
+            opacity: 1;
+        }
+        50% {
+            opacity: 0.6;
+        }
+        100% {
+            opacity: 1;
+        }
     }
 </style>
