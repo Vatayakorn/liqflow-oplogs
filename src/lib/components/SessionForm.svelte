@@ -91,7 +91,7 @@
 
         otcTransactions = data.otc_transactions || [];
         prefundCurrent = data.prefund_current || 0;
-        prefundTarget = data.prefund_target || PREFUND_DEFAULTS.USDT; // Fallback to default
+        prefundTarget = data.prefund_target || PREFUND_DEFAULTS.target; // Fallback to default
         matchingNotes = data.matching_notes || "";
         otcNotes = data.otc_notes || "";
         generalNotes = data.note || "";
@@ -219,7 +219,11 @@
     let images: File[] = [];
     let audioFiles: { file: File; notes: string }[] = []; // Audio recordings with notes
     let orderBookContainer: HTMLElement;
+    let fxContainer: HTMLElement | undefined;
+    let brokerContainer: HTMLElement | undefined;
     let isCapturing = false;
+    let isCapturingFx = false;
+    let isCapturingBroker = false;
 
     // Fetch Timestamps
     let fxFetchTime = "";
@@ -324,6 +328,80 @@
             console.error("Capture failed:", error);
             toast.error("Capture failed. Is order book loaded?");
             isCapturing = false;
+        }
+    }
+
+    async function snapshotFxUI() {
+        if (!fxContainer) {
+            toast.error("FX section not visible");
+            return;
+        }
+
+        isCapturingFx = true;
+        await tick();
+
+        try {
+            // @ts-ignore
+            const html2canvas = (await import("html2canvas")).default;
+            const canvas = await html2canvas(fxContainer, {
+                backgroundColor: "#ffffff",
+                scale: 2,
+                logging: false,
+                useCORS: true,
+            });
+
+            canvas.toBlob((blob) => {
+                if (blob) {
+                    const file = new File([blob], `fx_snap_${Date.now()}.png`, {
+                        type: "image/png",
+                    });
+                    images = [...images, file];
+                    toast.success("FX snapshot added!");
+                }
+                isCapturingFx = false;
+            }, "image/png");
+        } catch (error) {
+            console.error("FX capture failed:", error);
+            toast.error("FX capture failed");
+            isCapturingFx = false;
+        }
+    }
+
+    async function snapshotBrokerUI() {
+        if (!brokerContainer) {
+            toast.error("Broker section not visible");
+            return;
+        }
+
+        isCapturingBroker = true;
+        await tick();
+
+        try {
+            // @ts-ignore
+            const html2canvas = (await import("html2canvas")).default;
+            const canvas = await html2canvas(brokerContainer, {
+                backgroundColor: "#ffffff",
+                scale: 2,
+                logging: false,
+                useCORS: true,
+            });
+
+            canvas.toBlob((blob) => {
+                if (blob) {
+                    const file = new File(
+                        [blob],
+                        `broker_snap_${Date.now()}.png`,
+                        { type: "image/png" },
+                    );
+                    images = [...images, file];
+                    toast.success("Broker snapshot added!");
+                }
+                isCapturingBroker = false;
+            }, "image/png");
+        } catch (error) {
+            console.error("Broker capture failed:", error);
+            toast.error("Broker capture failed");
+            isCapturingBroker = false;
         }
     }
 
@@ -804,24 +882,48 @@
                     {/if}
                 </button>
             {/if}
+            {#if fxRate}
+                <button
+                    type="button"
+                    class="snap-btn"
+                    on:click={snapshotFxUI}
+                    disabled={disabled || isCapturingFx}
+                >
+                    {#if isCapturingFx}
+                        ⏳ Snapping...
+                    {:else}
+                        📸 Snap UI
+                    {/if}
+                </button>
+            {/if}
         </div>
-        <div class="field">
-            <label>USD/THB Spot Rate</label>
-            <input
-                type="text"
-                bind:value={fxRate}
-                placeholder="31.510"
-                disabled={disabled || isSubmitting}
-            />
-        </div>
-        <div class="field">
-            <label>Notes</label>
-            <textarea
-                bind:value={fxNotes}
-                placeholder="FX trend, observations..."
-                rows="2"
-                disabled={disabled || isSubmitting}
-            ></textarea>
+        <div class="fx-snapshot-container" bind:this={fxContainer}>
+            {#if isCapturingFx}
+                <div class="snapshot-header">
+                    <span class="app-name">Liqflow FX Snapshot</span>
+                    <span class="app-time"
+                        >{new Date().toLocaleString("th-TH")}</span
+                    >
+                </div>
+            {/if}
+            <div class="field">
+                <label>USD/THB Spot Rate</label>
+                <input
+                    type="text"
+                    bind:value={fxRate}
+                    placeholder="31.510"
+                    disabled={disabled || isSubmitting}
+                />
+            </div>
+            <div class="field">
+                <label>Notes</label>
+                <textarea
+                    bind:value={fxNotes}
+                    placeholder="FX trend, observations..."
+                    rows="2"
+                    disabled={disabled || isSubmitting}
+                ></textarea>
+            </div>
         </div>
     </CollapsibleSection>
 
@@ -845,38 +947,62 @@
                     {/if}
                 </button>
             {/if}
+            {#if btzBid || btzAsk}
+                <button
+                    type="button"
+                    class="snap-btn"
+                    on:click={snapshotBrokerUI}
+                    disabled={disabled || isCapturingBroker}
+                >
+                    {#if isCapturingBroker}
+                        ⏳ Snapping...
+                    {:else}
+                        📸 Snap UI
+                    {/if}
+                </button>
+            {/if}
         </div>
-        <div class="bid-ask-row">
-            <div class="field">
-                <label>BID</label>
-                <input
-                    type="number"
-                    step="0.001"
-                    bind:value={btzBid}
-                    placeholder="31.471"
-                    disabled={disabled || isSubmitting}
-                />
+        <div class="broker-snapshot-container" bind:this={brokerContainer}>
+            {#if isCapturingBroker}
+                <div class="snapshot-header">
+                    <span class="app-name">Liqflow Broker Snapshot</span>
+                    <span class="app-time"
+                        >{new Date().toLocaleString("th-TH")}</span
+                    >
+                </div>
+            {/if}
+            <div class="bid-ask-row">
+                <div class="field">
+                    <label>BID</label>
+                    <input
+                        type="number"
+                        step="0.001"
+                        bind:value={btzBid}
+                        placeholder="31.471"
+                        disabled={disabled || isSubmitting}
+                    />
+                </div>
+                <div class="field">
+                    <label>ASK</label>
+                    <input
+                        type="number"
+                        step="0.001"
+                        bind:value={btzAsk}
+                        placeholder="31.523"
+                        disabled={disabled || isSubmitting}
+                    />
+                </div>
             </div>
-            <div class="field">
-                <label>ASK</label>
-                <input
-                    type="number"
-                    step="0.001"
-                    bind:value={btzAsk}
-                    placeholder="31.523"
-                    disabled={disabled || isSubmitting}
-                />
-            </div>
-        </div>
 
-        <div class="field">
-            <label>Notes</label>
-            <textarea
-                bind:value={btzNotes}
-                placeholder="Broker conditions..."
-                rows="2"
-                disabled={disabled || isSubmitting}
-            ></textarea>
+            <div class="field">
+                <label>Notes</label>
+                <textarea
+                    bind:value={btzNotes}
+                    placeholder="Broker conditions..."
+                    rows="2"
+                    disabled={disabled || isSubmitting}
+                ></textarea>
+            </div>
         </div>
     </CollapsibleSection>
 
@@ -1689,6 +1815,19 @@
     .action-group {
         display: flex;
         gap: 0.5rem;
+    }
+
+    .fx-snapshot-container,
+    .broker-snapshot-container {
+        padding: 0;
+        transition: all 0.2s;
+    }
+
+    .fx-snapshot-container:has(.snapshot-header),
+    .broker-snapshot-container:has(.snapshot-header) {
+        padding: 1.5rem;
+        background: #ffffff;
+        border-radius: 12px;
     }
 
     .snapshot-header {
