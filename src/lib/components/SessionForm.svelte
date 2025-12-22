@@ -45,6 +45,11 @@
 
     $: isEditing = !!initialData;
 
+    // Price mode: 'live' = auto-update from WebSocket, 'manual' = user controls fetch
+    // In edit mode, always manual (no live updates)
+    let priceMode: "live" | "manual" = "live";
+    $: effectivePriceMode = isEditing ? "manual" : priceMode;
+
     // Initialize only if initialData changes or on start
     onMount(() => {
         if (initialData) {
@@ -90,6 +95,25 @@
         matchingNotes = data.matching_notes || "";
         otcNotes = data.otc_notes || "";
         generalNotes = data.note || "";
+
+        // Load saved order book snapshots from market_context if available
+        if (data.market_context?.bitkub) {
+            bitkubBook = data.market_context.bitkub;
+        }
+        if (data.market_context?.binanceTH) {
+            binanceBook = data.market_context.binanceTH;
+        }
+
+        // Load saved fetch times
+        if (data.market_context?.fxFetchTime) {
+            fxFetchTime = data.market_context.fxFetchTime;
+        }
+        if (data.market_context?.brokerFetchTime) {
+            brokerFetchTime = data.market_context.brokerFetchTime;
+        }
+        if (data.market_context?.exchangeFetchTime) {
+            exchangeFetchTime = data.market_context.exchangeFetchTime;
+        }
 
         // We don't populate images and audioFiles as they are New files to upload
         // In edit mode, parent should handle existing ones
@@ -203,26 +227,32 @@
     let exchangeFetchTime = "";
 
     onMount(() => {
-        marketFeed.connect();
+        // Only connect to live feed when NOT editing
+        if (!initialData) {
+            marketFeed.connect();
+        }
     });
 
     onDestroy(() => {
-        marketFeed.disconnect();
+        // Only disconnect if we connected
+        if (!initialData) {
+            marketFeed.disconnect();
+        }
     });
 
-    // Reactive: Update UI when live data arrives
-    $: if ($fxLive) {
+    // Reactive: Update UI when live data arrives (only when NOT editing AND in live mode)
+    $: if ($fxLive && effectivePriceMode === "live") {
         fxRate = $fxLive.rate.toFixed(3);
         fxFetchTime = getCurrentTimeStr();
     }
 
-    $: if ($maxbitLive) {
+    $: if ($maxbitLive && effectivePriceMode === "live") {
         btzBid = $maxbitLive.bid.toFixed(3);
         btzAsk = $maxbitLive.ask.toFixed(3);
         brokerFetchTime = getCurrentTimeStr();
     }
 
-    $: if ($bitkubLive) {
+    $: if ($bitkubLive && effectivePriceMode === "live") {
         bitkubBook = $bitkubLive;
         exchange1Bid = $bitkubLive.bestBid.toFixed(2);
         exchange1Ask = $bitkubLive.bestAsk.toFixed(2);
@@ -230,7 +260,7 @@
         exchangeFetchTime = getCurrentTimeStr();
     }
 
-    $: if ($binanceTHLive) {
+    $: if ($binanceTHLive && effectivePriceMode === "live") {
         binanceBook = $binanceTHLive;
         exchange2Bid = $binanceTHLive.bestBid.toFixed(2);
         exchange2Ask = $binanceTHLive.bestAsk.toFixed(2);
@@ -710,27 +740,70 @@
         </div>
     </div>
 
+    <!-- Data Mode Selection (Global) -->
+    <div class="mode-card" class:is-editing={isEditing}>
+        {#if isEditing}
+            <div class="edit-banner">
+                <span class="banner-icon">📜</span>
+                <div class="banner-content">
+                    <strong>Historical Mode Active</strong>
+                    <p>
+                        Viewing saved data from this session. Live updates are
+                        disabled.
+                    </p>
+                </div>
+            </div>
+        {:else}
+            <div class="mode-selector">
+                <div class="mode-info">
+                    <span class="mode-label">Price Data Mode</span>
+                    <p class="mode-desc">
+                        Choose how market prices are updated
+                    </p>
+                </div>
+                <div class="price-mode-toggle">
+                    <button
+                        type="button"
+                        class="mode-btn"
+                        class:active={priceMode === "manual"}
+                        on:click={() => (priceMode = "manual")}
+                    >
+                        Manual
+                    </button>
+                    <button
+                        type="button"
+                        class="mode-btn live"
+                        class:active={priceMode === "live"}
+                        on:click={() => (priceMode = "live")}
+                    >
+                        <span class="status-dot"></span>
+                        🟢 Live
+                    </button>
+                </div>
+            </div>
+        {/if}
+    </div>
+
     <!-- FX Section -->
     <CollapsibleSection title="FX (Spot Rate)" icon="📊">
         <div class="section-action">
-            {#if $isConnected}
-                <span class="live-badge">🟢 Live</span>
-            {/if}
             {#if fxFetchTime}
                 <span class="fetch-time">Drawn at: {fxFetchTime}</span>
             {/if}
-            <button
-                type="button"
-                class="fetch-btn"
-                on:click={fetchFxRateData}
-                disabled={disabled || isSubmitting || isFetchingFx}
-            >
-                {#if isFetchingFx}
-                    ⏳ Loading...
-                {:else}
-                    🔄 Fetch Rate
-                {/if}
-            </button>
+            {#if effectivePriceMode === "manual"}
+                <button
+                    type="button"
+                    class="fetch-btn"
+                    on:click={fetchFxRateData}
+                    disabled={disabled || isSubmitting || isFetchingFx}
+                >
+                    {#if isFetchingFx}
+                        ⏳ Loading...
+                    {:else}
+                        🔄 Fetch Rate
+                    {/if}
+                </button>
+            {/if}
         </div>
         <div class="field">
             <label>USD/THB Spot Rate</label>
@@ -755,24 +828,23 @@
     <!-- Broker Section -->
     <CollapsibleSection title="Broker (Maxbit)" icon="🏦">
         <div class="section-action">
-            {#if $isConnected}
-                <span class="live-badge">🟢 Live</span>
-            {/if}
             {#if brokerFetchTime}
                 <span class="fetch-time">Drawn at: {brokerFetchTime}</span>
             {/if}
-            <button
-                type="button"
-                class="fetch-btn"
-                on:click={fetchBrokerPrices}
-                disabled={disabled || isSubmitting || isFetchingBroker}
-            >
-                {#if isFetchingBroker}
-                    ⏳ Loading...
-                {:else}
-                    🔄 Fetch Prices
-                {/if}
-            </button>
+            {#if effectivePriceMode === "manual"}
+                <button
+                    type="button"
+                    class="fetch-btn"
+                    on:click={fetchBrokerPrices}
+                    disabled={disabled || isSubmitting || isFetchingBroker}
+                >
+                    {#if isFetchingBroker}
+                        ⏳ Loading...
+                    {:else}
+                        🔄 Fetch Prices
+                    {/if}
+                </button>
+            {/if}
         </div>
         <div class="bid-ask-row">
             <div class="field">
@@ -812,25 +884,27 @@
     <CollapsibleSection title="Exchange (Order Book)" icon="📈">
         <div class="section-action">
             <div class="action-group">
-                {#if $isConnected}
-                    <span class="live-badge">🟢 Live</span>
-                {/if}
                 {#if exchangeFetchTime}
                     <span class="fetch-time">Drawn at: {exchangeFetchTime}</span
                     >
                 {/if}
-                <button
-                    type="button"
-                    class="fetch-btn"
-                    on:click={fetchExchangePrices}
-                    disabled={disabled || isSubmitting || isFetchingExchange}
-                >
-                    {#if isFetchingExchange}
-                        ⏳ Loading...
-                    {:else}
-                        🔄 Fetch Order Book
-                    {/if}
-                </button>
+
+                {#if effectivePriceMode === "manual"}
+                    <button
+                        type="button"
+                        class="fetch-btn"
+                        on:click={fetchExchangePrices}
+                        disabled={disabled ||
+                            isSubmitting ||
+                            isFetchingExchange}
+                    >
+                        {#if isFetchingExchange}
+                            ⏳ Loading...
+                        {:else}
+                            🔄 Fetch Order Book
+                        {/if}
+                    </button>
+                {/if}
 
                 {#if bitkubBook || binanceBook}
                     <button
@@ -863,7 +937,12 @@
                 {/if}
                 <!-- Bitkub Order Book -->
                 <div class="order-book">
-                    <div class="order-book-header bitkub">Bitkub</div>
+                    <div class="order-book-header bitkub">
+                        Bitkub
+                        {#if isEditing}
+                            <span class="hist-label">(Saved Snapshot)</span>
+                        {/if}
+                    </div>
                     <div class="order-book-columns">
                         <div class="order-book-column bids">
                             <div class="column-header">BID</div>
@@ -906,7 +985,12 @@
 
                 <!-- BinanceTH Order Book -->
                 <div class="order-book">
-                    <div class="order-book-header binance">BinanceTH</div>
+                    <div class="order-book-header binance">
+                        BinanceTH
+                        {#if isEditing}
+                            <span class="hist-label">(Saved Snapshot)</span>
+                        {/if}
+                    </div>
                     <div class="order-book-columns">
                         <div class="order-book-column bids">
                             <div class="column-header">BID</div>
@@ -1325,6 +1409,98 @@
         font-size: 1.25rem;
         color: var(--color-text-tertiary);
         padding-bottom: 0.75rem;
+    }
+
+    /* Mode Card & Toggles */
+    .mode-card {
+        background: var(--color-bg);
+        border-radius: 16px;
+        padding: 1rem 1.25rem;
+        border: 1px solid var(--color-border-light);
+        margin-bottom: 0.5rem;
+    }
+
+    .mode-card.is-editing {
+        background: rgba(255, 149, 0, 0.05);
+        border-color: rgba(255, 149, 0, 0.2);
+    }
+
+    .edit-banner {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .banner-icon {
+        font-size: 1.5rem;
+    }
+
+    .banner-content strong {
+        display: block;
+        font-size: 0.875rem;
+        color: #af5200;
+    }
+
+    .banner-content p {
+        margin: 0;
+        font-size: 0.75rem;
+        color: var(--color-text-secondary);
+    }
+
+    .mode-selector {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .mode-info .mode-label {
+        font-size: 0.8125rem;
+        font-weight: 700;
+        color: var(--color-text);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .mode-info .mode-desc {
+        margin: 0;
+        font-size: 0.75rem;
+        color: var(--color-text-tertiary);
+    }
+
+    .hist-label {
+        font-size: 0.625rem;
+        font-weight: 500;
+        opacity: 0.8;
+        margin-left: 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+    }
+
+    .status-dot {
+        display: inline-block;
+        width: 6px;
+        height: 6px;
+        background: #34c759;
+        border-radius: 50%;
+        margin-right: 4px;
+        box-shadow: 0 0 0 2px rgba(52, 199, 89, 0.2);
+    }
+
+    .mode-btn.live.active .status-dot {
+        animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+        0% {
+            box-shadow: 0 0 0 0 rgba(52, 199, 89, 0.4);
+        }
+        70% {
+            box-shadow: 0 0 0 6px rgba(52, 199, 89, 0);
+        }
+        100% {
+            box-shadow: 0 0 0 0 rgba(52, 199, 89, 0);
+        }
     }
 
     .exchange-comparison {
@@ -1889,6 +2065,42 @@
         cursor: not-allowed;
         background: rgba(0, 0, 0, 0.05);
         color: var(--color-text-tertiary);
+    }
+
+    /* Price Mode Toggle */
+    .price-mode-toggle {
+        display: flex;
+        background: var(--color-bg-secondary);
+        border-radius: 6px;
+        overflow: hidden;
+        border: 1px solid var(--color-border-light);
+    }
+
+    .mode-btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.6875rem;
+        font-weight: 600;
+        color: var(--color-text-tertiary);
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+
+    .mode-btn:hover {
+        color: var(--color-text-secondary);
+        background: rgba(0, 0, 0, 0.03);
+    }
+
+    .mode-btn.active {
+        color: var(--color-text);
+        background: var(--color-bg);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    }
+
+    .mode-btn.live.active {
+        color: #10b981;
+        background: rgba(16, 185, 129, 0.1);
     }
 
     .live-badge {
