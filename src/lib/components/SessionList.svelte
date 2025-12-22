@@ -265,23 +265,29 @@
     }
 
     .session-card {
-        background: var(--color-bg);
+        background: var(--color-bg-secondary);
         border-radius: 16px;
         overflow: hidden;
         border: 1px solid var(--color-border-light);
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        transition: all 0.2s ease;
+    }
+
+    .session-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
     }
 
     .session-main {
-        padding: 1.25rem;
+        padding: 1.5rem;
         display: flex;
         flex-direction: column;
-        gap: 0.625rem;
+        gap: 0.75rem;
     }
 
     .session-time {
         font-family: var(--font-family-heading);
-        font-size: 1.125rem;
+        font-size: 1.375rem;
         font-weight: 700;
         color: var(--color-text);
         letter-spacing: -0.02em;
@@ -308,10 +314,10 @@
     .session-pnl {
         display: inline-flex;
         align-self: flex-start;
-        font-size: 0.875rem;
-        font-weight: 600;
-        padding: 0.25rem 0.625rem;
-        border-radius: 6px;
+        font-size: 1rem;
+        font-weight: 700;
+        padding: 0.375rem 0.875rem;
+        border-radius: 8px;
     }
 
     .session-pnl.positive {
@@ -342,9 +348,9 @@
 
     .image-thumb {
         position: relative;
-        width: 56px;
-        height: 56px;
-        border-radius: 8px;
+        width: 72px;
+        height: 72px;
+        border-radius: 10px;
         overflow: hidden;
         background: var(--color-bg-secondary);
     }
@@ -374,14 +380,14 @@
 
     .action-btn {
         flex: 1;
-        padding: 0.75rem;
+        padding: 0.875rem;
         font-size: 0.9375rem;
-        font-weight: 500;
+        font-weight: 600;
         color: var(--color-primary);
         background: transparent;
         border: none;
         cursor: pointer;
-        transition: background 0.15s;
+        transition: all 0.15s;
     }
 
     .action-btn:hover {

@@ -19,9 +19,11 @@
     let sessions: OplogSession[] = [];
     let isLoading = true;
     let supabaseReady = false;
+    let mounted = false;
 
     // Check Supabase configuration on mount
     onMount(() => {
+        mounted = true;
         supabaseReady = isSupabaseConfigured();
         if (supabaseReady) {
             loadSessions();
@@ -74,16 +76,34 @@
 <div class="today-page">
     <header class="page-header">
         <h1>Operation Logs</h1>
-        <div class="date-picker">
-            <input
-                type="date"
-                bind:value={selectedDate}
-                max={new Date().toISOString().split("T")[0]}
-            />
+        <div class="header-actions">
+            <button
+                class="btn-new-session desktop-only"
+                on:click={() => goto("/session/new")}
+            >
+                <span class="btn-icon">+</span>
+                <span>New Session</span>
+            </button>
+            <div class="date-picker">
+                <input
+                    type="date"
+                    bind:value={selectedDate}
+                    max={new Date().toISOString().split("T")[0]}
+                />
+            </div>
         </div>
     </header>
 
-    {#if !supabaseReady}
+    <!-- Mobile FAB -->
+    <button
+        class="fab mobile-only"
+        on:click={() => goto("/session/new")}
+        aria-label="New Session"
+    >
+        <span class="fab-icon">+</span>
+    </button>
+
+    {#if mounted && !supabaseReady}
         <div class="config-warning">
             <div class="warning-icon">⚠️</div>
             <div class="warning-content">
@@ -180,16 +200,12 @@ PUBLIC_SUPABASE_ANON_KEY=your-anon-key</pre>
     }
 
     .content-grid {
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: 1.5rem;
-    }
-
-    @media (min-width: 1024px) {
-        .content-grid {
-            grid-template-columns: 1fr 1fr;
-            align-items: start;
-        }
+        display: flex;
+        flex-direction: column;
+        gap: 2rem;
+        max-width: 900px;
+        margin: 0 auto;
+        width: 100%;
     }
 
     .form-section {
@@ -214,21 +230,29 @@ PUBLIC_SUPABASE_ANON_KEY=your-anon-key</pre>
     .sessions-section {
         display: flex;
         flex-direction: column;
-        gap: 1rem;
+        gap: 1.5rem;
+        background: var(--color-bg);
+        border-radius: 20px;
+        padding: 1.5rem;
+        border: 1px solid var(--color-border-light);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
     }
 
     .section-header {
         display: flex;
-        align-items: baseline;
+        align-items: center;
         justify-content: space-between;
         gap: 1rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid var(--color-border-light);
     }
 
     .section-header h2 {
         margin: 0;
-        font-size: 1.125rem;
-        font-weight: 600;
+        font-size: 1.375rem;
+        font-weight: 700;
         color: var(--color-text);
+        letter-spacing: -0.02em;
     }
 
     .date-label {
@@ -337,5 +361,120 @@ PUBLIC_SUPABASE_ANON_KEY=your-anon-key</pre>
         background: var(--color-bg-secondary);
         border-radius: 8px;
         overflow-x: auto;
+    }
+
+    /* Header Actions */
+    .header-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    /* New Session Button - Desktop */
+    .btn-new-session {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.625rem 1.25rem;
+        font-size: 0.9375rem;
+        font-weight: 600;
+        color: #fff;
+        background: linear-gradient(
+            135deg,
+            var(--color-primary) 0%,
+            #0051a8 100%
+        );
+        border: none;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-shadow: 0 2px 8px rgba(0, 122, 255, 0.3);
+    }
+
+    .btn-new-session:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 122, 255, 0.4);
+    }
+
+    .btn-new-session:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 6px rgba(0, 122, 255, 0.3);
+    }
+
+    .btn-new-session .btn-icon {
+        font-size: 1.25rem;
+        font-weight: 300;
+        line-height: 1;
+    }
+
+    /* Mobile FAB */
+    .fab {
+        position: fixed;
+        bottom: 1.5rem;
+        right: 1.5rem;
+        width: 56px;
+        height: 56px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(
+            135deg,
+            var(--color-primary) 0%,
+            #0051a8 100%
+        );
+        border: none;
+        border-radius: 50%;
+        cursor: pointer;
+        box-shadow:
+            0 4px 12px rgba(0, 122, 255, 0.4),
+            0 2px 4px rgba(0, 0, 0, 0.1);
+        transition: all 0.2s ease;
+        z-index: 1000;
+    }
+
+    .fab:hover {
+        transform: scale(1.05);
+        box-shadow:
+            0 6px 20px rgba(0, 122, 255, 0.5),
+            0 3px 6px rgba(0, 0, 0, 0.15);
+    }
+
+    .fab:active {
+        transform: scale(0.98);
+    }
+
+    .fab-icon {
+        font-size: 1.75rem;
+        font-weight: 300;
+        color: #fff;
+        line-height: 1;
+    }
+
+    /* Responsive visibility */
+    .desktop-only {
+        display: flex;
+    }
+
+    .mobile-only {
+        display: none;
+    }
+
+    @media (max-width: 640px) {
+        .desktop-only {
+            display: none;
+        }
+
+        .mobile-only {
+            display: flex;
+        }
+
+        .page-header h1 {
+            font-size: 1.5rem;
+        }
+
+        .form-section h2,
+        .section-header h2 {
+            font-size: 1rem;
+        }
     }
 </style>
