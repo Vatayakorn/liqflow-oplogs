@@ -64,7 +64,7 @@
     let isFetchingBroker = false;
 
     // === Exchange ===
-    let exchange1 = "BTH";
+    let exchange1 = "Bitkub";
     let exchange1Bid = "";
     let exchange1Ask = "";
     let exchange2 = "BinanceTH";

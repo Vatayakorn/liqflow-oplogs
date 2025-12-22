@@ -1,6 +1,6 @@
 <script lang="ts">
     import { onMount, onDestroy } from "svelte";
-    import { createChart, ColorType } from "lightweight-charts";
+    import { createChart, ColorType, LineSeries } from "lightweight-charts";
 
     export let data: { time: number; value: number }[] = [];
     export let title: string = "Chart";
@@ -27,19 +27,30 @@
             },
             timeScale: {
                 timeVisible: true,
-                secondsVisible: true,
+                secondsVisible: false,
             },
         });
 
-        series = chart.addAreaSeries({
-            lineColor: color,
-            topColor: color,
-            bottomColor: "rgba(41, 98, 255, 0.28)",
+        // V5 API: chart.addSeries(SeriesType, options)
+        series = chart.addSeries(LineSeries, {
+            color: color,
+            lineWidth: 2,
         });
 
         if (data.length > 0) {
-            // Sort data by time just in case
-            const sortedData = [...data].sort((a, b) => a.time - b.time);
+            // Dedup by time (seconds) and sort - REQUIRED by Lightweight Charts
+            const timeMap = new Map();
+            data.forEach((item) => {
+                timeMap.set(item.time, item.value);
+            });
+
+            const sortedData = Array.from(timeMap.entries())
+                .map(([time, value]) => ({
+                    time: time as number,
+                    value: value as number,
+                }))
+                .sort((a, b) => a.time - b.time);
+
             series.setData(sortedData);
             chart.timeScale().fitContent();
         }
@@ -61,9 +72,22 @@
     }
 
     $: if (chart && series && data) {
-        const sortedData = [...data].sort((a, b) => a.time - b.time);
-        series.setData(sortedData);
-        chart.timeScale().fitContent();
+        const timeMap = new Map();
+        data.forEach((item) => {
+            timeMap.set(item.time, item.value);
+        });
+
+        const sortedData = Array.from(timeMap.entries())
+            .map(([time, value]) => ({
+                time: time as number,
+                value: value as number,
+            }))
+            .sort((a, b) => a.time - b.time);
+
+        if (sortedData.length > 0) {
+            series.setData(sortedData);
+            chart.timeScale().fitContent();
+        }
     }
 </script>
 

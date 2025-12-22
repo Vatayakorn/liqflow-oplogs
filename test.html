@@ -1,50 +1,140 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
+
 <head>
-    <title>Test Chart with Real Data</title>
-    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Market Line Chart Test - v5 Corrected</title>
+    <script src="https://unpkg.com/lightweight-charts@5.1.0/dist/lightweight-charts.standalone.production.js"></script>
     <style>
-        body { font-family: sans-serif; padding: 20px; }
-        .chart { height: 400px; border: 1px solid #ccc; margin-bottom: 20px; }
+        body {
+            font-family: -apple-system, sans-serif;
+            padding: 20px;
+            background: #f5f7fa;
+            color: #333;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        }
+
+        .chart {
+            height: 320px;
+            width: 100%;
+        }
+
+        h3 {
+            margin: 0 0 15px 0;
+            color: #1a1a1a;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
     </style>
 </head>
+
 <body>
-    <h1>Real Data Test</h1>
-    <div id="chart-container" class="chart"></div>
+    <h1 style="text-align: center; margin-bottom: 40px;">TradingView Lightweight Charts v5 - Line Chart Test</h1>
+    <div class="grid" id="container"></div>
+    <p style="text-align: center; margin-top: 20px; color: #888;">ใช้ API ใหม่:
+        <code>chart.addSeries(LineSeries, options)</code></p>
+
     <script>
-        const data = [{"time":1766164901,"value":31.433396,"source":"fx"},{"time":1766164901,"value":null,"source":"bitkub"},{"time":1766164902,"value":null,"source":"bitkub"},{"time":1766164902,"value":null,"source":"binance_th"},{"time":1766164902,"value":null,"source":"maxbit"},{"time":1766164902,"value":31.433396,"source":"fx"},{"time":1766164904,"value":null,"source":"bitkub"},{"time":1766164904,"value":null,"source":"maxbit"},{"time":1766164904,"value":null,"source":"binance_th"},{"time":1766164904,"value":31.433396,"source":"fx"},{"time":1766164905,"value":31.433396,"source":"fx"},{"time":1766164905,"value":null,"source":"binance_th"},{"time":1766164905,"value":null,"source":"maxbit"},{"time":1766164905,"value":null,"source":"bitkub"},{"time":1766164906,"value":null,"source":"bitkub"},{"time":1766164906,"value":null,"source":"binance_th"},{"time":1766164906,"value":31.433396,"source":"fx"},{"time":1766164906,"value":null,"source":"maxbit"},{"time":1766164907,"value":null,"source":"maxbit"},{"time":1766164907,"value":31.433396,"source":"fx"},{"time":1766164907,"value":null,"source":"bitkub"},{"time":1766164907,"value":null,"source":"binance_th"},{"time":1766164908,"value":null,"source":"maxbit"},{"time":1766164908,"value":null,"source":"bitkub"},{"time":1766164908,"value":31.433396,"source":"fx"},{"time":1766164908,"value":null,"source":"binance_th"},{"time":1766164909,"value":null,"source":"maxbit"},{"time":1766164909,"value":31.433396,"source":"fx"},{"time":1766164909,"value":null,"source":"bitkub"},{"time":1766164909,"value":null,"source":"binance_th"},{"time":1766164910,"value":null,"source":"bitkub"},{"time":1766164910,"value":31.433396,"source":"fx"},{"time":1766164910,"value":null,"source":"binance_th"},{"time":1766164910,"value":null,"source":"maxbit"},{"time":1766164912,"value":31.433396,"source":"fx"},{"time":1766164912,"value":null,"source":"binance_th"},{"time":1766164912,"value":null,"source":"maxbit"},{"time":1766164912,"value":null,"source":"bitkub"},{"time":1766164913,"value":31.433396,"source":"fx"},{"time":1766164913,"value":null,"source":"binance_th"},{"time":1766164913,"value":null,"source":"bitkub"},{"time":1766164913,"value":null,"source":"maxbit"},{"time":1766164913,"value":null,"source":"bitkub"},{"time":1766164913,"value":31.433396,"source":"fx"},{"time":1766164913,"value":null,"source":"binance_th"},{"time":1766164913,"value":null,"source":"maxbit"},{"time":1766164915,"value":null,"source":"bitkub"},{"time":1766164915,"value":null,"source":"maxbit"},{"time":1766164915,"value":null,"source":"binance_th"},{"time":1766164915,"value":31.433396,"source":"fx"}];
-        
-        // Filter sources
-        const sources = [...new Set(data.map(d => d.source))];
-        console.log("Sources:", sources);
-        
-        const chart = LightweightCharts.createChart(document.getElementById("chart-container"), {
-            layout: { textColor: "#333", background: { type: "solid", color: "white" } },
-            timeScale: { timeVisible: true, secondsVisible: true }
-        });
-        
-        // Colors
-        const colors = {
-            bitkub: "#27AE60",
-            binance_th: "#F3BA2F", 
-            maxbit: "#E53935",
-            fx: "#2962FF"
+        // Sample data
+        const rawData = [
+            { "created_at": "2025-12-22T07:11:00Z", "price": 31.185, "source": "bitkub" },
+            { "created_at": "2025-12-22T07:11:05Z", "price": 31.190, "source": "bitkub" },
+            { "created_at": "2025-12-22T07:11:10Z", "price": 31.182, "source": "bitkub" },
+            { "created_at": "2025-12-22T07:11:15Z", "price": 31.188, "source": "bitkub" },
+            { "created_at": "2025-12-22T07:11:20Z", "price": 31.195, "source": "bitkub" },
+
+            { "created_at": "2025-12-22T07:11:00Z", "price": 31.165, "source": "binance_th" },
+            { "created_at": "2025-12-22T07:11:05Z", "price": 31.168, "source": "binance_th" },
+            { "created_at": "2025-12-22T07:11:10Z", "price": 31.162, "source": "binance_th" },
+            { "created_at": "2025-12-22T07:11:15Z", "price": 31.170, "source": "binance_th" },
+            { "created_at": "2025-12-22T07:11:20Z", "price": 31.164, "source": "binance_th" },
+
+            { "created_at": "2025-12-22T07:11:00Z", "price": 31.148, "source": "maxbit" },
+            { "created_at": "2025-12-22T07:11:05Z", "price": 31.151, "source": "maxbit" },
+            { "created_at": "2025-12-22T07:11:10Z", "price": 31.145, "source": "maxbit" },
+            { "created_at": "2025-12-22T07:11:15Z", "price": 31.155, "source": "maxbit" },
+            { "created_at": "2025-12-22T07:11:20Z", "price": 31.150, "source": "maxbit" }
+        ];
+
+        const config = {
+            bitkub: { name: 'Bitkub (THB)', color: '#27AE60' },
+            binance_th: { name: 'Binance TH (THB)', color: '#F3BA2F' },
+            maxbit: { name: 'Maxbit (THB)', color: '#E53935' }
         };
-        
-        sources.forEach(source => {
-            const sourceData = data.filter(d => d.source === source);
-            if(sourceData.length > 0) {
-                const series = chart.addAreaSeries({
-                     topColor: colors[source] || "rgba(33, 150, 243, 0.56)",
-                     bottomColor: "rgba(33, 150, 243, 0.04)",
-                     lineColor: colors[source] || "rgba(33, 150, 243, 1)",
-                     lineWidth: 2,
-                });
-                series.setData(sourceData);
+
+        const container = document.getElementById('container');
+
+        // V5 API: Use LightweightCharts.LineSeries as a value, not a method name
+        const { createChart, LineSeries } = LightweightCharts;
+
+        Object.keys(config).forEach(s => {
+            const info = config[s];
+            const card = document.createElement('div');
+            card.className = 'card';
+            card.innerHTML = `<h3><span class="dot" style="background:${info.color}"></span> ${info.name}</h3><div id="c-${s}" class="chart"></div>`;
+            container.appendChild(card);
+
+            const chartOptions = {
+                layout: {
+                    textColor: 'black',
+                    background: { type: 'solid', color: 'white' }
+                },
+                grid: {
+                    vertLines: { color: '#f0f3fa' },
+                    horzLines: { color: '#f0f3fa' },
+                },
+                timeScale: {
+                    timeVisible: true,
+                    secondsVisible: true,
+                },
+            };
+
+            const chart = createChart(document.getElementById(`c-${s}`), chartOptions);
+
+            // V5 API: chart.addSeries(SeriesType, options)
+            const lineSeries = chart.addSeries(LineSeries, {
+                color: info.color,
+                lineWidth: 2,
+            });
+
+            // Process Data: Dedup by time and sort
+            const timeMap = new Map();
+            rawData.filter(d => d.source === s).forEach(d => {
+                const unixTime = Math.floor(new Date(d.created_at).getTime() / 1000);
+                timeMap.set(unixTime, d.price);
+            });
+
+            const plotData = Array.from(timeMap.entries())
+                .map(([time, value]) => ({ time, value }))
+                .sort((a, b) => a.time - b.time);
+
+            if (plotData.length > 0) {
+                lineSeries.setData(plotData);
+                chart.timeScale().fitContent();
             }
         });
-        
-        chart.timeScale().fitContent();
     </script>
 </body>
+
 </html>

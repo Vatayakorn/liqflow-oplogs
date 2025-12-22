@@ -32,7 +32,7 @@ export const OTC_SOURCES = [
 
 // Exchange Options (Bitkub and BinanceTH only)
 export const EXCHANGES = [
-    { value: 'BTH', label: 'Bitkub' },
+    { value: 'Bitkub', label: 'Bitkub' },
     { value: 'BinanceTH', label: 'Binance TH' },
 ] as const;
 

@@ -33,10 +33,13 @@ export async function getMarketDataRange(startTime: string, endTime: string): Pr
     // Transform to lightweight-charts format
     // time must be in seconds
     // Transform and filter nulls
+    // NOTE: Add local timezone offset so charts display local time (Lightweight Charts shows UTC by default)
+    const timezoneOffsetSeconds = new Date().getTimezoneOffset() * -60; // Convert minutes to seconds, negate because getTimezoneOffset returns opposite
+
     const rawData = data
         .filter(item => item.price !== null && item.price !== undefined)
         .map(item => ({
-            time: Math.floor(new Date(item.created_at).getTime() / 1000),
+            time: Math.floor(new Date(item.created_at).getTime() / 1000) + timezoneOffsetSeconds,
             value: Number(item.price),
             source: item.source
         }));

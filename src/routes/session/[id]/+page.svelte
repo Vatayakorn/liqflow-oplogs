@@ -108,16 +108,6 @@
 
         chartLoading = true;
         try {
-            // Get the date string from the day_id
-            // We can do a quick fetch or assume we need to update api.
-            // Let's do a quick fetch directly here or add a helper?
-            // Actually, `session` returned by Supabase might have `day` property if I update the query.
-            // Let's try to update the `getSession` function in `oplog.ts` first?
-            // Or simpler: just fetch it.
-
-            // Wait, I don't want to modify `oplog.ts` heavily if I can avoid it.
-            // But valid standard is to join.
-            // For now, let's just fetch the day.
             const { data: dayData } = await import("$lib/supabaseClient").then(
                 (m) =>
                     m.supabase
@@ -128,20 +118,37 @@
             );
 
             if (!dayData) return;
-            if (!session.start_time) return;
 
             const dateStr = dayData.log_date;
-            const startTimeStr = session.start_time;
 
-            const startDateTime = combineDateTime(dateStr, startTimeStr);
-            const rangeStart = addHours(startDateTime, -1);
-            const rangeEnd = addHours(startDateTime, 1);
+            // Get shift time range based on session.shift
+            const shiftTimes: Record<string, { start: string; end: string }> = {
+                A: { start: "06:00", end: "15:00" },
+                B: { start: "14:00", end: "23:00" },
+                C: { start: "22:00", end: "07:00" }, // Cross-midnight
+            };
+
+            const shift = session.shift || "B"; // Default to B if not set
+            const shiftConfig = shiftTimes[shift] || shiftTimes["B"];
+
+            // Calculate range start and end
+            const rangeStart = combineDateTime(dateStr, shiftConfig.start);
+            let rangeEnd = combineDateTime(dateStr, shiftConfig.end);
+
+            // Handle cross-midnight shift (e.g., Shift C: 22:00-07:00)
+            if (shiftConfig.end < shiftConfig.start) {
+                rangeEnd = addHours(rangeEnd, 24); // Add a day
+            }
 
             const allData = await getMarketDataRange(
                 rangeStart.toISOString(),
                 rangeEnd.toISOString(),
             );
-            console.log("Chart Data Fetched:", allData.length, "points");
+            console.log(
+                `Chart Data Fetched for Shift ${shift}:`,
+                allData.length,
+                "points",
+            );
             if (allData.length > 0) {
                 console.log("Sample:", allData[0]);
             }
@@ -186,6 +193,17 @@
         B: "#34C759",
         C: "#AF52DE",
     };
+
+    const exchangeDisplayNames: Record<string, string> = {
+        Bitkub: "Bitkub",
+        BTH: "Bitkub",
+        BinanceTH: "Binance TH",
+    };
+
+    function formatExchangeName(name: string | null): string {
+        if (!name) return "Exchange";
+        return exchangeDisplayNames[name] || name;
+    }
 </script>
 
 <svelte:head>
@@ -236,7 +254,7 @@
                 </div>
             {:else if availableSources.length > 0}
                 <div class="charts-section">
-                    <h3>Market Context (+/- 1 Hour)</h3>
+                    <h3>Market Context (Shift {session.shift})</h3>
                     <div class="charts-grid">
                         {#each availableSources as source}
                             <MarketChart
@@ -251,9 +269,7 @@
             {:else}
                 <div class="no-data-message">
                     <p>
-                        No market data found for this time range ({formatTime(
-                            session.start_time,
-                        )} +/- 1h).
+                        No market data found for Shift {session.shift}.
                     </p>
                 </div>
             {/if}
@@ -331,7 +347,7 @@
                     <div class="detail-grid">
                         <div class="detail-item">
                             <span class="label"
-                                >{session.exchange1 || "Exchange 1"}</span
+                                >{formatExchangeName(session.exchange1)}</span
                             >
                             <span class="value"
                                 >{session.exchange1_price || "-"}</span
@@ -339,7 +355,7 @@
                         </div>
                         <div class="detail-item">
                             <span class="label"
-                                >{session.exchange2 || "Exchange 2"}</span
+                                >{formatExchangeName(session.exchange2)}</span
                             >
                             <span class="value"
                                 >{session.exchange2_price || "-"}</span
@@ -348,8 +364,9 @@
                         <div class="detail-item">
                             <span class="label">Difference</span>
                             <span class="value"
-                                >{session.exchange_diff || "0.00"} ({session.exchange_higher ||
-                                    "-"})</span
+                                >{session.exchange_diff || "0.00"} ({formatExchangeName(
+                                    session.exchange_higher,
+                                )})</span
                             >
                         </div>
                     </div>
