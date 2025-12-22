@@ -1031,6 +1031,15 @@
                     </div>
                 </div>
             </div>
+        {:else if isEditing}
+            <div class="no-snapshot-msg">
+                <span class="warn-icon">📋</span>
+                <p>ไม่มี Order Book Snapshot สำหรับ session นี้</p>
+                <small
+                    >Session ที่สร้างก่อนหน้าอาจไม่ได้บันทึก order book depth
+                    ไว้</small
+                >
+            </div>
         {/if}
 
         <div class="diff-row">
@@ -1501,6 +1510,35 @@
         100% {
             box-shadow: 0 0 0 0 rgba(52, 199, 89, 0);
         }
+    }
+
+    .no-snapshot-msg {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 2rem;
+        background: rgba(255, 149, 0, 0.05);
+        border: 1px dashed rgba(255, 149, 0, 0.3);
+        border-radius: 12px;
+        text-align: center;
+    }
+
+    .no-snapshot-msg .warn-icon {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .no-snapshot-msg p {
+        margin: 0;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: #af5200;
+    }
+
+    .no-snapshot-msg small {
+        margin-top: 0.25rem;
+        font-size: 0.75rem;
+        color: var(--color-text-tertiary);
     }
 
     .exchange-comparison {
