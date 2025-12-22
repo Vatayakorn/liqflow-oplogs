@@ -1217,6 +1217,39 @@
                 </div>
             {/if}
 
+            {#if session.edit_history && session.edit_history.length > 0}
+                <div class="detail-card edit-history-card">
+                    <h3>📝 Edit History ({session.edit_history.length})</h3>
+                    <div class="edit-history-list">
+                        {#each session.edit_history as entry, idx}
+                            <div class="history-entry">
+                                <span class="history-time">
+                                    {new Date(entry.timestamp).toLocaleString(
+                                        "th-TH",
+                                    )}
+                                </span>
+                                <ul class="changes-list">
+                                    {#each entry.changes as change}
+                                        <li>
+                                            <strong>{change.field}</strong>:
+                                            <span class="old-value"
+                                                >{change.oldValue ??
+                                                    "(empty)"}</span
+                                            >
+                                            →
+                                            <span class="new-value"
+                                                >{change.newValue ??
+                                                    "(empty)"}</span
+                                            >
+                                        </li>
+                                    {/each}
+                                </ul>
+                            </div>
+                        {/each}
+                    </div>
+                </div>
+            {/if}
+
             <div class="session-footer">
                 <span class="created-at">
                     {new Date(session.created_at).toLocaleString()}
@@ -1951,5 +1984,57 @@
     .edit-btn svg {
         width: 1rem;
         height: 1rem;
+    }
+
+    /* Edit History Styles */
+    .edit-history-card {
+        border-left: 3px solid var(--color-warning);
+    }
+
+    .edit-history-list {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .history-entry {
+        padding: 0.75rem;
+        background: var(--color-bg);
+        border-radius: 8px;
+        border: 1px solid var(--color-border-light);
+    }
+
+    .history-time {
+        display: block;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--color-text-tertiary);
+        margin-bottom: 0.5rem;
+    }
+
+    .changes-list {
+        margin: 0;
+        padding-left: 1.25rem;
+        font-size: 0.8125rem;
+    }
+
+    .changes-list li {
+        margin-bottom: 0.25rem;
+        line-height: 1.5;
+    }
+
+    .changes-list strong {
+        color: var(--color-text);
+    }
+
+    .old-value {
+        color: #ff6b6b;
+        text-decoration: line-through;
+        opacity: 0.8;
+    }
+
+    .new-value {
+        color: #4ecdc4;
+        font-weight: 600;
     }
 </style>

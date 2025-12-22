@@ -5,19 +5,77 @@
     import SessionForm from "$lib/components/SessionForm.svelte";
     import {
         getSession,
-        updateSession,
+        updateSessionWithHistory,
         type OplogSession,
+        type ChangeEntry,
     } from "$lib/api/oplog";
     import { toast } from "$lib/stores/toast";
 
+    // Field labels for display
+    const FIELD_LABELS: Record<string, string> = {
+        start_time: "Start Time",
+        end_time: "End Time",
+        broker: "Broker",
+        trader: "Trader",
+        head: "Head",
+        recorder: "Recorder",
+        fx_rate: "FX Rate",
+        fx_notes: "FX Notes",
+        btz_bid: "BTZ Bid",
+        btz_ask: "BTZ Ask",
+        btz_notes: "BTZ Notes",
+        exchange1: "Exchange 1",
+        exchange1_price: "Exchange 1 Price",
+        exchange2: "Exchange 2",
+        exchange2_price: "Exchange 2 Price",
+        exchange_diff: "Exchange Diff",
+        exchange_higher: "Higher Exchange",
+        exchange_notes: "Exchange Notes",
+        prefund_current: "Prefund Current",
+        prefund_target: "Prefund Target",
+        matching_notes: "Matching Notes",
+        otc_notes: "OTC Notes",
+        note: "Notes",
+        shift: "Shift",
+    };
+
+    function formatChangesForToast(changes: ChangeEntry[]): string {
+        if (changes.length === 0) return "No changes detected";
+
+        const maxItems = 3;
+        const displayChanges = changes.slice(0, maxItems);
+        const lines = displayChanges.map((c) => {
+            const label = FIELD_LABELS[c.field] || c.field;
+            const oldStr = c.oldValue ?? "(empty)";
+            const newStr = c.newValue ?? "(empty)";
+            return `${label}: ${oldStr} → ${newStr}`;
+        });
+
+        if (changes.length > maxItems) {
+            lines.push(`...and ${changes.length - maxItems} more`);
+        }
+
+        return lines.join("\n");
+    }
+
     let session: OplogSession | null = null;
+    let originalSession: OplogSession | null = null;
     let isLoading = true;
 
     $: sessionId = $page.params.id;
 
     onMount(async () => {
         try {
+            if (!sessionId) {
+                toast.error("Invalid session ID");
+                goto("/history");
+                return;
+            }
             session = await getSession(sessionId);
+
+            originalSession = session
+                ? JSON.parse(JSON.stringify(session))
+                : null;
             if (!session) {
                 toast.error("Session not found");
                 goto("/history");
@@ -32,17 +90,26 @@
     });
 
     async function handleUpdate(event: CustomEvent<any>) {
-        if (!session) return;
+        if (!session || !originalSession) return;
 
         const payload = event.detail;
 
         try {
-            // We only update fields from the form, excluding images/audio which
-            // are handled separately if new files are provided.
             const { images, audio, ...updateData } = payload;
 
-            await updateSession(session.id, updateData);
-            toast.success("Session updated successfully");
+            const result = await updateSessionWithHistory(
+                session.id,
+                updateData,
+                originalSession,
+            );
+
+            if (result.changes.length > 0) {
+                const changeSummary = formatChangesForToast(result.changes);
+                toast.success(`Session updated!\n${changeSummary}`);
+            } else {
+                toast.info("No changes detected");
+            }
+
             goto(`/session/${session.id}`);
         } catch (error) {
             console.error("Update error:", error);

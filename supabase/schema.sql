@@ -72,6 +72,10 @@ CREATE TABLE IF NOT EXISTS oplog_sessions (
     
     -- General
     note TEXT NOT NULL DEFAULT '',
+    
+    -- Edit History (Change Log)
+    edit_history JSONB NULL DEFAULT '[]',
+    
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

@@ -53,9 +53,21 @@ export interface OplogSession {
     pnl_snapshot: number | null;
     action_taken: string | null;
     note: string;
+    edit_history: EditHistoryEntry[] | null;
     created_at: string;
     images?: OplogSessionImage[];
     audio?: OplogSessionAudio[];
+}
+
+export interface EditHistoryEntry {
+    timestamp: string;
+    changes: ChangeEntry[];
+}
+
+export interface ChangeEntry {
+    field: string;
+    oldValue: any;
+    newValue: any;
 }
 
 export interface OplogSessionImage {
@@ -283,6 +295,85 @@ export async function updateSession(session_id: string, payload: Partial<OplogSe
     }
 
     return data;
+}
+
+/**
+ * Update session with change tracking
+ * Computes diff and appends to edit_history
+ * @param session_id - Session UUID
+ * @param newData - New session data
+ * @param originalData - Original session data (before edits)
+ * @returns Object with updated session and computed changes
+ */
+export async function updateSessionWithHistory(
+    session_id: string,
+    newData: Partial<OplogSession>,
+    originalData: OplogSession
+): Promise<{ session: OplogSession; changes: ChangeEntry[] }> {
+    // Compute changes
+    const changes: ChangeEntry[] = [];
+    const trackableFields = [
+        'start_time', 'end_time', 'broker', 'trader', 'head', 'recorder',
+        'fx_rate', 'fx_notes', 'btz_bid', 'btz_ask', 'btz_notes',
+        'exchange1', 'exchange1_price', 'exchange2', 'exchange2_price',
+        'exchange_diff', 'exchange_higher', 'exchange_notes',
+        'prefund_current', 'prefund_target', 'matching_notes', 'otc_notes', 'note', 'shift'
+    ];
+
+    for (const field of trackableFields) {
+        const oldValue = (originalData as any)[field];
+        const newValue = (newData as any)[field];
+
+        // Normalize empty values
+        const normalizeEmpty = (v: any) => (v === null || v === undefined || v === '') ? null : v;
+        const normOld = normalizeEmpty(oldValue);
+        const normNew = normalizeEmpty(newValue);
+
+        if (normOld !== normNew) {
+            // Handle numeric comparison
+            if (typeof normOld === 'number' || typeof normNew === 'number') {
+                if (Number(normOld) !== Number(normNew)) {
+                    changes.push({ field, oldValue: normOld, newValue: normNew });
+                }
+            } else {
+                changes.push({ field, oldValue: normOld, newValue: normNew });
+            }
+        }
+    }
+
+    // Only update if there are changes
+    if (changes.length === 0) {
+        return { session: originalData, changes: [] };
+    }
+
+    // Build new history entry
+    const historyEntry: EditHistoryEntry = {
+        timestamp: new Date().toISOString(),
+        changes
+    };
+
+    // Get existing history
+    const existingHistory = originalData.edit_history || [];
+    const newHistory = [...existingHistory, historyEntry];
+
+    // Update session with new data and history
+    const updatePayload = {
+        ...newData,
+        edit_history: newHistory
+    };
+
+    const { data, error } = await supabase
+        .from('oplog_sessions')
+        .update(updatePayload)
+        .eq('id', session_id)
+        .select()
+        .single();
+
+    if (error) {
+        throw new Error(`Failed to update session: ${error.message}`);
+    }
+
+    return { session: data, changes };
 }
 
 /**
