@@ -20,6 +20,7 @@
     let isLoading = true;
     let isExporting = false;
     let supabaseReady = false;
+    let showExportMenu = false;
 
     // Chart Data
     let marketData: Record<string, MarketDataPoint[]> = {};
@@ -50,6 +51,20 @@
         } else {
             isLoading = false;
         }
+
+        // Close export menu when clicking outside
+        const handleClickOutside = (event: MouseEvent) => {
+            const target = event.target as HTMLElement;
+            if (!target.closest(".export-dropdown")) {
+                showExportMenu = false;
+            }
+        };
+
+        document.addEventListener("click", handleClickOutside);
+
+        return () => {
+            document.removeEventListener("click", handleClickOutside);
+        };
     });
 
     async function loadSession() {
@@ -220,6 +235,7 @@
         if (!element) return;
 
         isExporting = true;
+        showExportMenu = false;
         document.body.classList.add("exporting-pdf");
 
         try {
@@ -252,6 +268,345 @@
         } finally {
             isExporting = false;
             document.body.classList.remove("exporting-pdf");
+        }
+    }
+
+    function exportToTXT() {
+        if (!session) return;
+
+        isExporting = true;
+        showExportMenu = false;
+
+        try {
+            toast.info("Preparing TXT export...");
+
+            // Build comprehensive text content
+            let content = "";
+
+            // Header
+            content +=
+                "═══════════════════════════════════════════════════════════\n";
+            content += `           OPERATION LOG - SHIFT ${session.shift}\n`;
+            content +=
+                "═══════════════════════════════════════════════════════════\n\n";
+
+            // Time Range
+            content += `Time Range: ${formatTime(session.start_time)} – ${formatTime(session.end_time)}\n`;
+            content += `Created: ${new Date(session.created_at).toLocaleString()}\n`;
+            content += "\n";
+
+            // Team Section
+            content +=
+                "───────────────────────────────────────────────────────────\n";
+            content += "TEAM\n";
+            content +=
+                "───────────────────────────────────────────────────────────\n";
+            content += `Broker:   ${session.broker}\n`;
+            content += `Trader:   ${session.trader}\n`;
+            content += `Head:     ${session.head}\n`;
+            if (session.recorder) {
+                content += `Recorder: ${session.recorder}\n`;
+            }
+            content += "\n";
+
+            // FX Section
+            if (session.fx_rate) {
+                content +=
+                    "───────────────────────────────────────────────────────────\n";
+                content += "FX SECTION\n";
+                content +=
+                    "───────────────────────────────────────────────────────────\n";
+                content += `Spot Rate: ${session.fx_rate} THB\n`;
+                if (session.market_context?.fxFetchTime) {
+                    content += `Fetched:   ${session.market_context.fxFetchTime}\n`;
+                }
+                if (session.fx_notes) {
+                    content += `Notes:     ${session.fx_notes}\n`;
+                }
+                content += "\n";
+            }
+
+            // Broker Section
+            if (session.btz_bid || session.btz_ask) {
+                content +=
+                    "───────────────────────────────────────────────────────────\n";
+                content += "BROKER (BTZ/MAXBIT)\n";
+                content +=
+                    "───────────────────────────────────────────────────────────\n";
+                content += `BID: ${session.btz_bid || "-"}\n`;
+                content += `ASK: ${session.btz_ask || "-"}\n`;
+                if (session.market_context?.brokerFetchTime) {
+                    content += `Fetched: ${session.market_context.brokerFetchTime}\n`;
+                }
+                if (session.btz_notes) {
+                    content += `Notes: ${session.btz_notes}\n`;
+                }
+                content += "\n";
+            }
+
+            // Exchange Comparison
+            if (session.exchange1 || session.exchange2) {
+                content +=
+                    "───────────────────────────────────────────────────────────\n";
+                content += "EXCHANGE COMPARISON\n";
+                content +=
+                    "───────────────────────────────────────────────────────────\n";
+                content += `${formatExchangeName(session.exchange1)}: ${session.exchange1_price || "-"}\n`;
+                content += `${formatExchangeName(session.exchange2)}: ${session.exchange2_price || "-"}\n`;
+                content += `Difference: ${session.exchange_diff || "0.00"} (${formatExchangeName(session.exchange_higher)} higher)\n`;
+                if (session.market_context?.exchangeFetchTime) {
+                    content += `Fetched: ${session.market_context.exchangeFetchTime}\n`;
+                }
+
+                // Order Book Snapshots
+                if (bitkubBook || binanceBook) {
+                    content += "\nOrder Book Snapshots (Top 5):\n\n";
+
+                    if (bitkubBook) {
+                        content += "  BITKUB:\n";
+                        content +=
+                            "  ┌────────────────────────────┬────────────────────────────┐\n";
+                        content +=
+                            "  │     BID (Price/Amt)        │     ASK (Price/Amt)        │\n";
+                        content +=
+                            "  ├────────────────────────────┼────────────────────────────┤\n";
+                        for (let i = 0; i < 5; i++) {
+                            const bid = bitkubBook.bids[i];
+                            const ask = bitkubBook.asks[i];
+                            const bidStr = bid
+                                ? `${bid.price.toFixed(2).padStart(11)} / ${bid.amount.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 }).padStart(12)}`
+                                : "-".padStart(26);
+                            const askStr = ask
+                                ? `${ask.price.toFixed(2).padStart(11)} / ${ask.amount.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 }).padStart(12)}`
+                                : "-".padStart(26);
+                            content += `  │ ${bidStr} │ ${askStr} │\n`;
+                        }
+                        content +=
+                            "  └────────────────────────────┴────────────────────────────┘\n\n";
+                    }
+
+                    if (binanceBook) {
+                        content += "  BINANCETH:\n";
+                        content +=
+                            "  ┌────────────────────────────┬────────────────────────────┐\n";
+                        content +=
+                            "  │     BID (Price/Amt)        │     ASK (Price/Amt)        │\n";
+                        content +=
+                            "  ├────────────────────────────┼────────────────────────────┤\n";
+                        for (let i = 0; i < 5; i++) {
+                            const bid = binanceBook.bids[i];
+                            const ask = binanceBook.asks[i];
+                            const bidStr = bid
+                                ? `${bid.price.toFixed(2).padStart(11)} / ${bid.amount.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 }).padStart(12)}`
+                                : "-".padStart(26);
+                            const askStr = ask
+                                ? `${ask.price.toFixed(2).padStart(11)} / ${ask.amount.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 }).padStart(12)}`
+                                : "-".padStart(26);
+                            content += `  │ ${bidStr} │ ${askStr} │\n`;
+                        }
+                        content +=
+                            "  └────────────────────────────┴────────────────────────────┘\n\n";
+                    }
+                }
+
+                if (session.exchange_notes) {
+                    content += `Exchange Notes: ${session.exchange_notes}\n`;
+                }
+                content += "\n";
+            }
+
+            // OTC Operations
+            if (
+                (session.otc_transactions &&
+                    session.otc_transactions.length > 0) ||
+                session.prefund_current
+            ) {
+                content +=
+                    "───────────────────────────────────────────────────────────\n";
+                content += "OTC OPERATIONS\n";
+                content +=
+                    "───────────────────────────────────────────────────────────\n";
+
+                if (
+                    session.otc_transactions &&
+                    session.otc_transactions.length > 0
+                ) {
+                    content += "\nTransactions:\n";
+                    content +=
+                        "┌──────────────────────────┬────────┬────────────────────┬────────────────────┬──────────┐\n";
+                    content +=
+                        "│ Customer                 │ Action │ Amount             │ Total (THB)        │ Status   │\n";
+                    content +=
+                        "├──────────────────────────┼────────┼────────────────────┼────────────────────┼──────────┤\n";
+                    session.otc_transactions.forEach((tx: any) => {
+                        const customer = tx.customerName
+                            .substring(0, 24)
+                            .padEnd(24);
+                        const action = tx.action.padEnd(6);
+                        const amount =
+                            `${tx.amount.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ${tx.currency}`.padEnd(
+                                18,
+                            );
+                        const total =
+                            `฿${(tx.total || 0).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`.padEnd(
+                                18,
+                            );
+                        const status = (tx.status || "-").padEnd(8);
+                        content += `│ ${customer} │ ${action} │ ${amount} │ ${total} │ ${status} │\n`;
+                    });
+                    content +=
+                        "└──────────────────────────┴────────┴────────────────────┴────────────────────┴──────────┘\n\n";
+                }
+
+                // Prefund Status
+                if (
+                    session.prefund_current !== null ||
+                    session.prefund_target !== null
+                ) {
+                    const current = session.prefund_current || 0;
+                    const target = session.prefund_target || 760000;
+                    const percentage =
+                        target > 0
+                            ? ((current / target) * 100).toFixed(1)
+                            : "0.0";
+                    content += "Prefund Status:\n";
+                    content += `  Current: ${current.toLocaleString()} USDT\n`;
+                    content += `  Target:  ${target.toLocaleString()} USDT\n`;
+                    content += `  Progress: ${percentage}%\n\n`;
+                }
+
+                if (session.matching_notes) {
+                    content += `Matching Notes: ${session.matching_notes}\n`;
+                }
+                if (session.otc_notes) {
+                    content += `OTC Notes: ${session.otc_notes}\n`;
+                }
+                content += "\n";
+            }
+
+            // Status Section
+            if (
+                session.market_mode ||
+                session.inventory_status ||
+                session.risk_flag ||
+                session.execution_issue
+            ) {
+                content +=
+                    "───────────────────────────────────────────────────────────\n";
+                content += "STATUS\n";
+                content +=
+                    "───────────────────────────────────────────────────────────\n";
+                if (session.market_mode) {
+                    content += `Market Mode:      ${session.market_mode}\n`;
+                }
+                if (session.inventory_status) {
+                    content += `Inventory:        ${session.inventory_status}\n`;
+                }
+                if (session.risk_flag) {
+                    content += `Risk Flag:        ${session.risk_flag}\n`;
+                }
+                if (session.execution_issue) {
+                    content += `Execution Issue:  ${session.execution_issue}\n`;
+                }
+                content += "\n";
+            }
+
+            // Performance Section
+            if (session.pnl_snapshot !== null || session.action_taken) {
+                content +=
+                    "───────────────────────────────────────────────────────────\n";
+                content += "PERFORMANCE\n";
+                content +=
+                    "───────────────────────────────────────────────────────────\n";
+                if (session.pnl_snapshot !== null) {
+                    const pnlStr =
+                        session.pnl_snapshot >= 0
+                            ? `+${session.pnl_snapshot.toLocaleString()}`
+                            : session.pnl_snapshot.toLocaleString();
+                    content += `P&L Snapshot: ${pnlStr}\n`;
+                }
+                if (session.action_taken) {
+                    content += `Action Taken: ${session.action_taken}\n`;
+                }
+                content += "\n";
+            }
+
+            // General Notes
+            if (session.note) {
+                content +=
+                    "───────────────────────────────────────────────────────────\n";
+                content += "NOTES\n";
+                content +=
+                    "───────────────────────────────────────────────────────────\n";
+                content += `${session.note}\n\n`;
+            }
+
+            // Media Attachments
+            if (
+                (session.images && session.images.length > 0) ||
+                (session.audio && session.audio.length > 0)
+            ) {
+                content +=
+                    "───────────────────────────────────────────────────────────\n";
+                content += "MEDIA ATTACHMENTS\n";
+                content +=
+                    "───────────────────────────────────────────────────────────\n";
+
+                if (session.images && session.images.length > 0) {
+                    content += `\nPhotos (${session.images.length}):\n`;
+                    session.images.forEach((img: any, idx: number) => {
+                        content += `  ${idx + 1}. ${img.public_url}\n`;
+                    });
+                    content += "\n";
+                }
+
+                if (session.audio && session.audio.length > 0) {
+                    content += `Audio Files (${session.audio.length}):\n`;
+                    session.audio.forEach((aud: any, idx: number) => {
+                        const time = new Date(
+                            aud.created_at,
+                        ).toLocaleTimeString("th-TH", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                        });
+                        content += `  ${idx + 1}. [${time}] ${aud.public_url}\n`;
+                        if (aud.notes) {
+                            content += `     Note: ${aud.notes}\n`;
+                        }
+                        if (aud.transcript) {
+                            content += `     Transcript: ${aud.transcript}\n`;
+                        }
+                    });
+                    content += "\n";
+                }
+            }
+
+            // Footer
+            content +=
+                "═══════════════════════════════════════════════════════════\n";
+            content += "End of Operation Log\n";
+            content +=
+                "═══════════════════════════════════════════════════════════\n";
+
+            // Create and download file
+            const blob = new Blob([content], {
+                type: "text/plain;charset=utf-8",
+            });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `Shift_${session.shift}_${new Date().toISOString().split("T")[0]}.txt`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            toast.success("TXT exported successfully");
+        } catch (error) {
+            console.error("TXT Export failed:", error);
+            toast.error("Failed to export TXT");
+        } finally {
+            isExporting = false;
         }
     }
 </script>
@@ -291,28 +646,77 @@
             <span>Edit</span>
         </a>
 
-        <button
-            class="export-btn"
-            on:click={exportToPDF}
-            disabled={isExporting}
-        >
-            {#if isExporting}
-                <div class="spinner-tiny"></div>
-                <span>Exporting...</span>
-            {:else}
-                <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                >
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                    <polyline points="7 10 12 15 17 10" />
-                    <line x1="12" y1="15" x2="12" y2="3" />
-                </svg>
-                <span>Export PDF</span>
+        <div class="export-dropdown">
+            <button
+                class="export-btn"
+                on:click={() => (showExportMenu = !showExportMenu)}
+                disabled={isExporting}
+            >
+                {#if isExporting}
+                    <div class="spinner-tiny"></div>
+                    <span>Exporting...</span>
+                {:else}
+                    <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                    >
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                    <span>Export</span>
+                    <svg
+                        class="chevron"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                    >
+                        <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                {/if}
+            </button>
+
+            {#if showExportMenu && !isExporting}
+                <div class="export-menu">
+                    <button class="export-menu-item" on:click={exportToPDF}>
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                        >
+                            <path
+                                d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+                            />
+                            <polyline points="14 2 14 8 20 8" />
+                            <line x1="16" y1="13" x2="8" y2="13" />
+                            <line x1="16" y1="17" x2="8" y2="17" />
+                            <polyline points="10 9 9 9 8 9" />
+                        </svg>
+                        <span>Export as PDF</span>
+                    </button>
+                    <button class="export-menu-item" on:click={exportToTXT}>
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                        >
+                            <path
+                                d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+                            />
+                            <polyline points="14 2 14 8 20 8" />
+                            <line x1="10" y1="12" x2="14" y2="12" />
+                            <line x1="10" y1="16" x2="14" y2="16" />
+                        </svg>
+                        <span>Export as TXT</span>
+                    </button>
+                </div>
             {/if}
-        </button>
+        </div>
     </header>
 
     {#if isLoading}
@@ -1222,6 +1626,73 @@
     .export-btn svg {
         width: 1rem;
         height: 1rem;
+    }
+
+    .export-btn svg.chevron {
+        width: 0.875rem;
+        height: 0.875rem;
+        margin-left: -0.125rem;
+    }
+
+    .export-dropdown {
+        position: relative;
+    }
+
+    .export-menu {
+        position: absolute;
+        top: calc(100% + 0.5rem);
+        right: 0;
+        min-width: 180px;
+        background: var(--color-bg);
+        border: 1px solid var(--color-border-light);
+        border-radius: 12px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+        overflow: hidden;
+        z-index: 100;
+        animation: slideDown 0.15s ease-out;
+    }
+
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            transform: translateY(-8px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .export-menu-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        width: 100%;
+        padding: 0.75rem 1rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: var(--color-text);
+        background: transparent;
+        border: none;
+        border-bottom: 1px solid var(--color-border-light);
+        cursor: pointer;
+        transition: all 0.15s;
+        text-align: left;
+    }
+
+    .export-menu-item:last-child {
+        border-bottom: none;
+    }
+
+    .export-menu-item:hover {
+        background: var(--color-bg-secondary);
+        color: var(--color-primary);
+    }
+
+    .export-menu-item svg {
+        width: 1.125rem;
+        height: 1.125rem;
+        flex-shrink: 0;
     }
 
     .spinner-tiny {
