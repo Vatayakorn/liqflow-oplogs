@@ -124,6 +124,9 @@
         }
     }
 
+    // Session time range for chart initial zoom (in Unix seconds)
+    let sessionTimeRange: { from: number; to: number } | null = null;
+
     async function fetchChartData(session: any) {
         if (!session.day_id) return;
 
@@ -142,37 +145,48 @@
 
             const dateStr = dayData.log_date;
 
-            // Get shift time range based on session.shift
+            // Get shift time range for fetching ALL context data
             const shiftTimes: Record<string, { start: string; end: string }> = {
                 A: { start: "06:00", end: "15:00" },
                 B: { start: "14:00", end: "23:00" },
-                C: { start: "22:00", end: "07:00" }, // Cross-midnight
+                C: { start: "22:00", end: "07:00" },
             };
-
-            const shift = session.shift || "B"; // Default to B if not set
+            const shift = session.shift || "B";
             const shiftConfig = shiftTimes[shift] || shiftTimes["B"];
 
-            // Calculate range start and end
-            const rangeStart = combineDateTime(dateStr, shiftConfig.start);
-            let rangeEnd = combineDateTime(dateStr, shiftConfig.end);
-
-            // Handle cross-midnight shift (e.g., Shift C: 22:00-07:00)
+            // Calculate fetch range (full shift for context)
+            const fetchStart = combineDateTime(dateStr, shiftConfig.start);
+            let fetchEnd = combineDateTime(dateStr, shiftConfig.end);
             if (shiftConfig.end < shiftConfig.start) {
-                rangeEnd = addHours(rangeEnd, 24); // Add a day
+                fetchEnd = addHours(fetchEnd, 24);
             }
 
+            // Calculate session visible range (for default zoom)
+            const sessionStart = session.start_time || shiftConfig.start;
+            const sessionEnd = session.end_time || shiftConfig.end;
+            const visibleStart = combineDateTime(dateStr, sessionStart);
+            let visibleEnd = combineDateTime(dateStr, sessionEnd);
+            if (sessionEnd < sessionStart) {
+                visibleEnd = addHours(visibleEnd, 24);
+            }
+
+            // Store session time range for chart zoom (Unix seconds)
+            sessionTimeRange = {
+                from: Math.floor(visibleStart.getTime() / 1000),
+                to: Math.floor(visibleEnd.getTime() / 1000),
+            };
+
+            // Fetch full shift data for context
             const allData = await getMarketDataRange(
-                rangeStart.toISOString(),
-                rangeEnd.toISOString(),
+                fetchStart.toISOString(),
+                fetchEnd.toISOString(),
             );
             console.log(
-                `Chart Data Fetched for Shift ${shift}:`,
+                `Chart Data Fetched for Shift ${shift} (${shiftConfig.start}-${shiftConfig.end}):`,
                 allData.length,
                 "points",
             );
-            if (allData.length > 0) {
-                console.log("Sample:", allData[0]);
-            }
+            console.log(`Default view: ${sessionStart} - ${sessionEnd}`);
 
             // Group by source
             const grouped: Record<string, MarketDataPoint[]> = {};
@@ -756,6 +770,7 @@
                                 title={sourceNames[source] || source}
                                 color={sourceColors[source] || "#2962FF"}
                                 height={250}
+                                visibleRange={sessionTimeRange}
                             />
                         {/each}
                     </div>

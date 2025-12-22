@@ -6,10 +6,12 @@
     export let title: string = "Chart";
     export let color: string = "#2962FF";
     export let height: number = 300;
+    export let visibleRange: { from: number; to: number } | null = null;
 
     let chartContainer: HTMLElement;
     let chart: any;
     let series: any;
+    let isInitialLoad = true; // Track first render for visible range
 
     onMount(() => {
         if (!chartContainer) return;
@@ -52,7 +54,19 @@
                 .sort((a, b) => a.time - b.time);
 
             series.setData(sortedData);
-            chart.timeScale().fitContent();
+
+            // Apply visible range only on initial load, otherwise fit all content
+            if (
+                isInitialLoad &&
+                visibleRange &&
+                visibleRange.from &&
+                visibleRange.to
+            ) {
+                chart.timeScale().setVisibleRange(visibleRange);
+                isInitialLoad = false;
+            } else {
+                chart.timeScale().fitContent();
+            }
         }
 
         window.addEventListener("resize", handleResize);
@@ -86,7 +100,17 @@
 
         if (sortedData.length > 0) {
             series.setData(sortedData);
-            chart.timeScale().fitContent();
+            // Only apply visible range on initial load, don't reset user's zoom position
+            if (
+                isInitialLoad &&
+                visibleRange &&
+                visibleRange.from &&
+                visibleRange.to
+            ) {
+                chart.timeScale().setVisibleRange(visibleRange);
+                isInitialLoad = false;
+            }
+            // Don't call fitContent() on updates - preserve user's zoom position
         }
     }
 </script>
