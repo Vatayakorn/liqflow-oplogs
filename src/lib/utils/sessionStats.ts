@@ -38,12 +38,33 @@ export interface AttachmentCounts {
     audioCount: number;
 }
 
+export interface ArbitrageInfo {
+    // Direction 1: Buy from Broker → Sell on Exchange (Exchange Bid - Broker Ask)
+    bitkubDiff: number | null;      // Bitkub Bid - Broker Ask (THB)
+    binanceDiff: number | null;     // BinanceTH Bid - Broker Ask (THB)
+    // Direction 2: Buy from Exchange → Sell to Broker (Broker Bid - Exchange Ask)
+    bitkubReverseDiff: number | null;   // Broker Bid - Bitkub Ask (THB)
+    binanceReverseDiff: number | null;  // Broker Bid - BinanceTH Ask (THB)
+    // Best opportunity info
+    bestExchange: 'Bitkub' | 'BinanceTH' | null;
+    bestDirection: 'toBroker' | 'toExchange' | null;  // Which direction is better
+    bestDiffSatang: number | null;  // Best diff in satang (สตางค์)
+    hasOpportunity: boolean;
+}
+
+export interface ExchangeVolumeInfo {
+    bitkub: number | null;
+    binanceTH: number | null;
+}
+
 export interface SessionStats {
     otc: OtcStats;
     prefund: PrefundStatus;
     spread: SpreadInfo;
     duration: DurationInfo;
     attachments: AttachmentCounts;
+    arbitrage: ArbitrageInfo;
+    exchangeVolume: ExchangeVolumeInfo;
 }
 
 /**
@@ -154,6 +175,105 @@ export function countAttachments(session: OplogSession): AttachmentCounts {
 }
 
 /**
+ * Calculate arbitrage opportunity between exchanges and broker
+ * Direction 1: Exchange Best Bid - Broker Best Ask (buy from broker, sell on exchange)
+ * Direction 2: Broker Best Bid - Exchange Best Ask (buy from exchange, sell to broker)
+ * Positive value means opportunity exists
+ */
+export function calculateArbitrageInfo(session: OplogSession): ArbitrageInfo {
+    // Parse exchange prices (format: "bid/ask")
+    const parsePrice = (priceStr: string | null): { bid: number; ask: number } | null => {
+        if (!priceStr) return null;
+        const parts = priceStr.split('/');
+        if (parts.length !== 2) return null;
+        const bid = parseFloat(parts[0]);
+        const ask = parseFloat(parts[1]);
+        if (isNaN(bid) || isNaN(ask)) return null;
+        return { bid, ask };
+    };
+
+    const bitkubPrice = parsePrice(session.exchange1_price);
+    const binancePrice = parsePrice(session.exchange2_price);
+    const brokerAsk = session.btz_ask;
+    const brokerBid = session.btz_bid;
+
+    // Direction 1: Buy from Broker → Sell on Exchange (Exchange Bid - Broker Ask)
+    let bitkubDiff: number | null = null;
+    let binanceDiff: number | null = null;
+
+    if (bitkubPrice && brokerAsk) {
+        bitkubDiff = bitkubPrice.bid - brokerAsk;
+    }
+    if (binancePrice && brokerAsk) {
+        binanceDiff = binancePrice.bid - brokerAsk;
+    }
+
+    // Direction 2: Buy from Exchange → Sell to Broker (Broker Bid - Exchange Ask)
+    let bitkubReverseDiff: number | null = null;
+    let binanceReverseDiff: number | null = null;
+
+    if (bitkubPrice && brokerBid) {
+        bitkubReverseDiff = brokerBid - bitkubPrice.ask;
+    }
+    if (binancePrice && brokerBid) {
+        binanceReverseDiff = brokerBid - binancePrice.ask;
+    }
+
+    // Find best opportunity across all directions
+    let bestExchange: ArbitrageInfo['bestExchange'] = null;
+    let bestDirection: ArbitrageInfo['bestDirection'] = null;
+    let bestDiffSatang: number | null = null;
+
+    // All candidates: [diff, exchange, direction]
+    const candidates: Array<[number, ArbitrageInfo['bestExchange'], ArbitrageInfo['bestDirection']]> = [];
+
+    if (bitkubDiff !== null && bitkubDiff > 0) {
+        candidates.push([bitkubDiff, 'Bitkub', 'toExchange']);
+    }
+    if (binanceDiff !== null && binanceDiff > 0) {
+        candidates.push([binanceDiff, 'BinanceTH', 'toExchange']);
+    }
+    if (bitkubReverseDiff !== null && bitkubReverseDiff > 0) {
+        candidates.push([bitkubReverseDiff, 'Bitkub', 'toBroker']);
+    }
+    if (binanceReverseDiff !== null && binanceReverseDiff > 0) {
+        candidates.push([binanceReverseDiff, 'BinanceTH', 'toBroker']);
+    }
+
+    // Find the best (highest diff)
+    if (candidates.length > 0) {
+        candidates.sort((a, b) => b[0] - a[0]); // Sort descending by diff
+        const best = candidates[0];
+        bestDiffSatang = Math.round(best[0] * 100); // THB to satang
+        bestExchange = best[1];
+        bestDirection = best[2];
+    }
+
+    return {
+        bitkubDiff,
+        binanceDiff,
+        bitkubReverseDiff,
+        binanceReverseDiff,
+        bestExchange,
+        bestDirection,
+        bestDiffSatang,
+        hasOpportunity: bestDiffSatang !== null && bestDiffSatang > 0
+    };
+}
+
+/**
+ * Parse exchange volume from market_context
+ */
+export function parseExchangeVolume(session: OplogSession): ExchangeVolumeInfo {
+    const marketContext = session.market_context;
+
+    return {
+        bitkub: marketContext?.exchangeVolume?.bitkub ?? null,
+        binanceTH: marketContext?.exchangeVolume?.binanceTH ?? null
+    };
+}
+
+/**
  * Calculate all session statistics
  */
 export function calculateSessionStats(session: OplogSession): SessionStats {
@@ -162,7 +282,9 @@ export function calculateSessionStats(session: OplogSession): SessionStats {
         prefund: calculatePrefundStatus(session.prefund_current, session.prefund_target),
         spread: parseSpreadInfo(session.exchange_diff, session.exchange_higher),
         duration: calculateDuration(session.start_time, session.end_time),
-        attachments: countAttachments(session)
+        attachments: countAttachments(session),
+        arbitrage: calculateArbitrageInfo(session),
+        exchangeVolume: parseExchangeVolume(session)
     };
 }
 

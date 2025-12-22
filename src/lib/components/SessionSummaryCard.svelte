@@ -126,6 +126,93 @@
                 >
             </div>
         </div>
+
+        <!-- Arbitrage Opportunity -->
+        <div
+            class="metric-card"
+            class:has-opportunity={stats.arbitrage.hasOpportunity}
+        >
+            <div class="metric-icon">⚡</div>
+            <div class="metric-content">
+                <span class="metric-label">Arbitrage</span>
+                {#if stats.arbitrage.hasOpportunity}
+                    <span class="metric-value arb-positive">
+                        +{stats.arbitrage.bestDiffSatang} สต.
+                    </span>
+                    <span class="metric-sub arb-best">
+                        {stats.arbitrage.bestExchange}
+                        {#if stats.arbitrage.bestDirection === "toBroker"}
+                            → Broker ✓
+                        {:else}
+                            → Exchange ✓
+                        {/if}
+                    </span>
+                {:else}
+                    <span class="metric-value arb-none">-</span>
+                    <span class="metric-sub">No opportunity</span>
+                {/if}
+                {#if stats.arbitrage.bitkubDiff !== null || stats.arbitrage.binanceDiff !== null || stats.arbitrage.bitkubReverseDiff !== null || stats.arbitrage.binanceReverseDiff !== null}
+                    <div class="arb-details">
+                        <!-- Direction 1: Broker → Exchange (ซื้อจาก Broker ขายที่ Exchange) -->
+                        {#if stats.arbitrage.bitkubDiff !== null}
+                            <span
+                                class="arb-item"
+                                class:positive={stats.arbitrage.bitkubDiff > 0}
+                                title="Bitkub Bid - Broker Ask (ซื้อจาก Broker ขายที่ BK)"
+                            >
+                                Br→BK: {stats.arbitrage.bitkubDiff > 0
+                                    ? "+"
+                                    : ""}{Math.round(
+                                    stats.arbitrage.bitkubDiff * 100,
+                                )}
+                            </span>
+                        {/if}
+                        {#if stats.arbitrage.binanceDiff !== null}
+                            <span
+                                class="arb-item"
+                                class:positive={stats.arbitrage.binanceDiff > 0}
+                                title="BinanceTH Bid - Broker Ask (ซื้อจาก Broker ขายที่ BN)"
+                            >
+                                Br→BN: {stats.arbitrage.binanceDiff > 0
+                                    ? "+"
+                                    : ""}{Math.round(
+                                    stats.arbitrage.binanceDiff * 100,
+                                )}
+                            </span>
+                        {/if}
+                        <!-- Direction 2: Exchange → Broker (ซื้อจาก Exchange ขายให้ Broker) -->
+                        {#if stats.arbitrage.bitkubReverseDiff !== null}
+                            <span
+                                class="arb-item"
+                                class:positive={stats.arbitrage
+                                    .bitkubReverseDiff > 0}
+                                title="Broker Bid - Bitkub Ask (ซื้อจาก BK ขายให้ Broker)"
+                            >
+                                BK→Br: {stats.arbitrage.bitkubReverseDiff > 0
+                                    ? "+"
+                                    : ""}{Math.round(
+                                    stats.arbitrage.bitkubReverseDiff * 100,
+                                )}
+                            </span>
+                        {/if}
+                        {#if stats.arbitrage.binanceReverseDiff !== null}
+                            <span
+                                class="arb-item"
+                                class:positive={stats.arbitrage
+                                    .binanceReverseDiff > 0}
+                                title="Broker Bid - BinanceTH Ask (ซื้อจาก BN ขายให้ Broker)"
+                            >
+                                BN→Br: {stats.arbitrage.binanceReverseDiff > 0
+                                    ? "+"
+                                    : ""}{Math.round(
+                                    stats.arbitrage.binanceReverseDiff * 100,
+                                )}
+                            </span>
+                        {/if}
+                    </div>
+                {/if}
+            </div>
+        </div>
     </div>
 
     <!-- Secondary Info -->
@@ -147,6 +234,25 @@
                     >
                 {/if}
             </div>
+
+            <!-- Exchange Volume Row -->
+            {#if stats.exchangeVolume.bitkub !== null || stats.exchangeVolume.binanceTH !== null}
+                <div class="exchange-volume-row">
+                    <span class="ev-label">📈 Exchange Vol:</span>
+                    {#if stats.exchangeVolume.bitkub !== null}
+                        <span class="ev-item bitkub">
+                            Bitkub {formatVolume(stats.exchangeVolume.bitkub)} THB
+                        </span>
+                    {/if}
+                    {#if stats.exchangeVolume.binanceTH !== null}
+                        <span class="ev-item binance">
+                            BinanceTH {formatVolume(
+                                stats.exchangeVolume.binanceTH,
+                            )} THB
+                        </span>
+                    {/if}
+                </div>
+            {/if}
 
             <!-- Note Preview -->
             {#if session.note}
@@ -263,8 +369,14 @@
     /* Metrics Grid */
     .metrics-grid {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(4, 1fr);
         gap: 0.75rem;
+    }
+
+    @media (max-width: 900px) {
+        .metrics-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
     }
 
     @media (max-width: 640px) {
@@ -451,5 +563,82 @@
         .card-actions {
             flex-direction: column;
         }
+    }
+
+    /* Arbitrage Styles */
+    .metric-card.has-opportunity {
+        background: linear-gradient(
+            135deg,
+            rgba(52, 199, 89, 0.1),
+            rgba(52, 199, 89, 0.05)
+        );
+        border: 1px solid rgba(52, 199, 89, 0.2);
+    }
+
+    .arb-positive {
+        color: #34c759 !important;
+    }
+
+    .arb-none {
+        color: var(--color-text-tertiary) !important;
+    }
+
+    .arb-best {
+        color: #34c759;
+        font-weight: 600;
+    }
+
+    .arb-details {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.25rem;
+        margin-top: 0.25rem;
+        font-size: 0.625rem;
+    }
+
+    .arb-item {
+        color: var(--color-text-tertiary);
+        padding: 0.0625rem 0.1875rem;
+        background: var(--color-bg-tertiary);
+        border-radius: 3px;
+        white-space: nowrap;
+    }
+
+    .arb-item.positive {
+        color: #34c759;
+        background: rgba(52, 199, 89, 0.1);
+    }
+
+    /* Exchange Volume Styles */
+    .exchange-volume-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.5rem 0.75rem;
+        background: var(--color-bg-secondary);
+        border-radius: 8px;
+        font-size: 0.8125rem;
+    }
+
+    .ev-label {
+        font-weight: 500;
+        color: var(--color-text-secondary);
+    }
+
+    .ev-item {
+        padding: 0.25rem 0.5rem;
+        border-radius: 6px;
+        font-weight: 600;
+    }
+
+    .ev-item.bitkub {
+        background: rgba(0, 208, 132, 0.15);
+        color: #00d084;
+    }
+
+    .ev-item.binance {
+        background: rgba(243, 186, 47, 0.15);
+        color: #f3ba2f;
     }
 </style>
