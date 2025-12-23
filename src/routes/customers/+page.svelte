@@ -12,6 +12,7 @@
         getAllCustomers,
         getFollowupAlerts,
         getAnalyticsSummary,
+        getBehaviorStats,
         BEHAVIOR_CONFIG,
         type CustomerListItem,
         type BehaviorType,
@@ -82,29 +83,30 @@
 
             customers = customersData;
             alerts = alertsData;
-            summary = summaryData;
 
-            // If no analytics exist yet, compute stats from customers
-            if (summary.behaviorStats.total === 0 && customers.length > 0) {
-                const stats: BehaviorStats = {
-                    hot_lead: 0,
-                    negotiator: 0,
-                    window_shopper: 0,
-                    ghost: 0,
-                    vip_repeat: 0,
-                    new_prospect: 0,
-                    total: customers.length,
-                };
-                customers.forEach((c) => {
-                    stats[c.behaviorType]++;
-                });
-                summary.behaviorStats = stats;
-                summary.totalCustomers = customers.length;
-                summary.totalVolume = customers.reduce(
-                    (sum, c) => sum + c.totalVolume,
-                    0,
-                );
-            }
+            // Recalculate summary from the ACTUAL filtered data to ensure perfect match
+            const stats = getBehaviorStats(customers);
+            const totalVol = customers.reduce(
+                (sum, c) => sum + (c.totalVolume || 0),
+                0,
+            );
+            const avgEng = customers.length
+                ? customers.reduce(
+                      (sum, c) => sum + (c.engagementScore || 0),
+                      0,
+                  ) / customers.length
+                : 0;
+            const needsFu = customers.filter((c) => c.needsFollowup).length;
+
+            summary = {
+                totalCustomers: customers.length,
+                activeCustomers: customers.filter((c) => c.transactionCount > 0)
+                    .length,
+                totalVolume: totalVol,
+                avgEngagement: avgEng,
+                needsFollowup: needsFu,
+                behaviorStats: stats,
+            };
         } catch (e) {
             error = e instanceof Error ? e.message : "Failed to load data";
             console.error("Load error:", e);

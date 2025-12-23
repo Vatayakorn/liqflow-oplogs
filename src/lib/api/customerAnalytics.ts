@@ -108,6 +108,7 @@ export interface CustomerListItem {
     lastContact?: string;
     needsFollowup: boolean;
     followupPriority: FollowupPriority;
+    aiBehavior?: BehaviorType;
 }
 
 // ============================================
@@ -164,6 +165,32 @@ export const BEHAVIOR_CONFIG: Record<BehaviorType, {
         action: 'แนะนำบริการ ตอบคำถามละเอียด'
     }
 };
+
+/**
+ * Derives a preliminary behavior type based on volume and transaction count
+ * Used when AI analysis hasn't been performed yet.
+ */
+export function derivePreliminaryBehavior(volume: number, count: number, lastDate?: string): BehaviorType {
+    const now = new Date();
+    const last = lastDate ? new Date(lastDate) : now;
+    const diffMs = now.getTime() - last.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    // VIP: High volume or very frequent
+    if (volume >= 1000000 || count >= 15) return 'vip_repeat';
+
+    // Ghost: Has history but silent for a long time (> 14 days)
+    if (count > 0 && diffDays > 14) return 'ghost';
+
+    // Hot Lead: Significant volume or regular
+    if (volume >= 300000 || count >= 5) return 'hot_lead';
+
+    // Negotiator: Has done some business
+    if (volume > 0 || count >= 1) return 'negotiator';
+
+    // Window Shopper: Contacted but no volume yet
+    return 'window_shopper';
+}
 
 // ============================================
 // API Functions
@@ -330,7 +357,8 @@ export async function getAllCustomers(
         customers.push({
             name: data.name,
             displayName: analytics?.display_name || data.name,
-            behaviorType: analytics?.behavior_type || 'new_prospect',
+            behaviorType: derivePreliminaryBehavior(data.totalVolume, data.transactionCount, data.lastDate),
+            aiBehavior: analytics?.behavior_type,
             engagementScore: analytics?.engagement_score || 0.5,
             totalVolume: data.totalVolume,
             transactionCount: data.transactionCount,
@@ -607,9 +635,7 @@ async function fetchCustomerApiTransactions(customerName: string): Promise<OtcTr
 /**
  * Calculate distribution of behaviors based on merged customer list
  */
-export async function getBehaviorStats(customers?: CustomerListItem[]): Promise<BehaviorStats> {
-    const list = customers || await getAllCustomers();
-
+export function getBehaviorStats(customers: CustomerListItem[]): BehaviorStats {
     const stats: BehaviorStats = {
         hot_lead: 0,
         negotiator: 0,
@@ -617,10 +643,10 @@ export async function getBehaviorStats(customers?: CustomerListItem[]): Promise<
         ghost: 0,
         vip_repeat: 0,
         new_prospect: 0,
-        total: list.length
+        total: customers.length
     };
 
-    list.forEach(c => {
+    customers.forEach(c => {
         const type = c.behaviorType;
         if (type in stats) {
             stats[type]++;
