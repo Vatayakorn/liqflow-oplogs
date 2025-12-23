@@ -18,6 +18,7 @@
         getChatMessagesForTimeRange,
         type ChatMessage,
     } from "$lib/api/chatlog";
+    import AISummary from "$lib/components/AISummary.svelte";
 
     $: sessionId = $page.params.id;
 
@@ -1359,6 +1360,11 @@
                 </div>
             {/if}
 
+            <!-- AI Summary Section -->
+            <div class="detail-card ai-summary-section">
+                <AISummary {session} {chatMessages} />
+            </div>
+
             <!-- Chat Log Section -->
             <div class="detail-card">
                 <h3>
@@ -2188,5 +2194,11 @@
     .new-value {
         color: #4ecdc4;
         font-weight: 600;
+    }
+
+    /* AI Summary Section - remove default padding since component has its own */
+    .ai-summary-section {
+        padding: 0;
+        overflow: hidden;
     }
 </style>
