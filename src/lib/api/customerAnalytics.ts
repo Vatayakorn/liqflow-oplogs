@@ -204,8 +204,14 @@ export async function getAllCustomers(
     dateFrom?: string,
     dateTo?: string
 ): Promise<CustomerListItem[]> {
-    // 1. Fetch from local Supabase (oplog_sessions)
-    let query = supabase
+    // 1. Fetch ALL known names from Oplog sessions to establish a stable base
+    const { data: allSessions } = await supabase
+        .from('oplog_sessions')
+        .select('otc_transactions')
+        .not('otc_transactions', 'is', null);
+
+    // 2. Fetch Filtered sessions for the selected period
+    let filteredQuery = supabase
         .from('oplog_sessions')
         .select(`
             id,
@@ -215,42 +221,42 @@ export async function getAllCustomers(
         `)
         .not('otc_transactions', 'is', null);
 
-    // Apply date filter if provided
-    if (dateFrom) {
-        query = query.gte('oplog_days.log_date', dateFrom);
-    }
-    if (dateTo) {
-        query = query.lte('oplog_days.log_date', dateTo);
-    }
+    if (dateFrom) filteredQuery = filteredQuery.gte('oplog_days.log_date', dateFrom);
+    if (dateTo) filteredQuery = filteredQuery.lte('oplog_days.log_date', dateTo);
 
-    const { data: sessions, error } = await query;
-
-    if (error) {
-        console.error('Error fetching sessions:', error);
-    }
-
-    // 2. We no longer fetch from the legacy Customer Master List as requested.
-    // Names will be derived directly from transaction data (API + Oplog).
+    const { data: filteredSessions } = await filteredQuery;
+    // 3. Fetch Master List from API to establish a comprehensive base
     let apiCustomers: any[] = [];
+    try {
+        const { fetchAllCustomersFromAPI } = await import('./customerApi');
+        apiCustomers = await fetchAllCustomersFromAPI();
+    } catch (apiError) {
+        console.warn('[getAllCustomers] Master List fetch failed:', apiError);
+    }
 
-    // 3. Fetch transactions from API (LF_API_BASE_URL) to enrich the count/volume
-    let recentApiTransactions: any[] = [];
+    // 4. Fetch Transactions from OTC API
+    let filteredApiTransactions: any[] = [];
+    let baseApiTransactions: any[] = [];
     try {
         const { fetchTodayOtcTransactions, fetchOtcTransactionsInRange } = await import('./otcApi');
 
-        // If dateFrom is provided, fetch for that range. Otherwise just today.
+        // Always fetch a 90-day window to enrich metrics for the dashboard
+        const ninetyDaysAgo = new Date();
+        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+        const baseDateStr = ninetyDaysAgo.toISOString().split('T')[0];
+        baseApiTransactions = await fetchOtcTransactionsInRange(baseDateStr);
+
+        // Then get the specific filtered transactions for the view
         if (dateFrom) {
-            recentApiTransactions = await fetchOtcTransactionsInRange(dateFrom, dateTo);
-            console.log(`[getAllCustomers] Found ${recentApiTransactions.length} OTC transactions from API for range ${dateFrom} to ${dateTo || 'today'}`);
+            filteredApiTransactions = await fetchOtcTransactionsInRange(dateFrom, dateTo);
         } else {
-            recentApiTransactions = await fetchTodayOtcTransactions();
-            console.log(`[getAllCustomers] Found ${recentApiTransactions.length} OTC transactions from API for today`);
+            filteredApiTransactions = baseApiTransactions;
         }
     } catch (apiError) {
-        console.warn('[getAllCustomers] Failed to fetch API transactions:', apiError);
+        console.warn('[getAllCustomers] API fetch failed:', apiError);
     }
 
-    // Aggregate customers from all sources
+    // Initialize map with ALL known customers (Master List)
     const customerMap = new Map<string, {
         name: string;
         totalVolume: number;
@@ -258,23 +264,30 @@ export async function getAllCustomers(
         lastDate: string;
     }>();
 
-    // Initialize with Master List
-    apiCustomers.forEach(c => {
-        const name = c.name?.trim();
-        if (!name) return;
-        customerMap.set(name.toLowerCase(), {
-            name: name,
-            totalVolume: 0,
-            transactionCount: 0,
-            lastDate: ''
-        });
-    });
+    const addCustomerToMap = (name: string, isBase: boolean = true) => {
+        const key = name.trim().toLowerCase();
+        if (!key) return;
+        if (!customerMap.has(key)) {
+            customerMap.set(key, {
+                name: name.trim(),
+                totalVolume: 0,
+                transactionCount: 0,
+                lastDate: ''
+            });
+        }
+    };
 
-    // Track matched transaction IDs to avoid double counting
+    // Add names from all sources to the map first
+    allSessions?.forEach(s => {
+        (s.otc_transactions as any[])?.forEach(tx => addCustomerToMap(tx.customerName));
+    });
+    baseApiTransactions.forEach(tx => addCustomerToMap(tx.customerName));
+    apiCustomers.forEach(c => addCustomerToMap(c.name));
+
+    // Now populate metrics from FILTERED data
     const processedTxIds = new Set<string>();
 
-    // Merge session data
-    sessions?.forEach(session => {
+    filteredSessions?.forEach(session => {
         const transactions = session.otc_transactions as any[] || [];
         const sessionDate = (session.day as any)?.log_date || session.created_at;
 
@@ -285,50 +298,28 @@ export async function getAllCustomers(
             const txId = tx.id || `oplog-${session.id}-${tx.timestamp || sessionDate}`;
             processedTxIds.add(txId);
 
-            const key = customerName.toLowerCase();
-            const existing = customerMap.get(key);
-            const amount = tx.amount || 0;
-
+            const existing = customerMap.get(customerName.toLowerCase());
             if (existing) {
-                existing.totalVolume += amount;
+                existing.totalVolume += tx.amount || 0;
                 existing.transactionCount += 1;
                 if (sessionDate > existing.lastDate) existing.lastDate = sessionDate;
-            } else {
-                customerMap.set(key, {
-                    name: customerName,
-                    totalVolume: amount,
-                    transactionCount: 1,
-                    lastDate: sessionDate
-                });
             }
         });
     });
 
-    // Merge API transactions (fully deduplicated)
-    recentApiTransactions.forEach(tx => {
+    filteredApiTransactions.forEach(tx => {
         const customerName = tx.customerName?.trim();
         if (!customerName) return;
-
-        // Skip if already processed in oplog sessions
         if (tx.id && processedTxIds.has(tx.id)) return;
         if (tx.id) processedTxIds.add(tx.id);
 
-        const key = customerName.toLowerCase();
-        const existing = customerMap.get(key);
-        const amount = tx.amount || 0;
+        const existing = customerMap.get(customerName.toLowerCase());
         const txDate = tx.timestamp || new Date().toISOString();
 
         if (existing) {
-            existing.totalVolume += amount;
+            existing.totalVolume += tx.amount || 0;
             existing.transactionCount += 1;
             if (txDate > existing.lastDate) existing.lastDate = txDate;
-        } else {
-            customerMap.set(key, {
-                name: customerName,
-                totalVolume: amount,
-                transactionCount: 1,
-                lastDate: txDate
-            });
         }
     });
 
