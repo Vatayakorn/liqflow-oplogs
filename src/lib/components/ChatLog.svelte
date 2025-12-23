@@ -46,6 +46,28 @@
         if (msg.from_username) return `@${msg.from_username}`;
         return "Unknown";
     }
+
+    // Highlight matching text in search results
+    function highlightText(text: string, query: string): string {
+        if (!query.trim() || !text) return escapeHtml(text);
+
+        const escapedText = escapeHtml(text);
+        const escapedQuery = escapeHtml(query);
+
+        // Case-insensitive replace with highlight span
+        const regex = new RegExp(`(${escapeRegex(escapedQuery)})`, "gi");
+        return escapedText.replace(regex, '<mark class="highlight">$1</mark>');
+    }
+
+    function escapeHtml(text: string): string {
+        const div = document.createElement("div");
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function escapeRegex(str: string): string {
+        return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
 </script>
 
 <div class="chatlog-container">
@@ -110,7 +132,12 @@
                         </div>
                         <div class="message-bubble">
                             {#if msg.message_text}
-                                <p class="message-text">{msg.message_text}</p>
+                                <p class="message-text">
+                                    {@html highlightText(
+                                        msg.message_text,
+                                        searchQuery,
+                                    )}
+                                </p>
                             {:else if msg.content_type}
                                 <p class="message-media">
                                     [{msg.content_type}]
@@ -197,6 +224,15 @@
     .clear-search:hover {
         background: var(--color-text-tertiary);
         color: var(--color-bg);
+    }
+
+    /* Search highlight */
+    :global(.highlight) {
+        background: linear-gradient(120deg, #ffd700 0%, #ffed4a 100%);
+        color: #000;
+        padding: 0.1em 0.2em;
+        border-radius: 3px;
+        font-weight: 600;
     }
 
     .empty-state.small {
