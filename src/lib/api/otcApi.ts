@@ -109,6 +109,56 @@ export async function fetchTodayOtcTransactions(): Promise<OtcTransaction[]> {
 }
 
 /**
+ * Fetch OTC transactions for a specific date
+ */
+export async function fetchOtcTransactionsByDate(date: string): Promise<OtcTransaction[]> {
+    try {
+        const url = `/api/otc/transactions?date=${date}&limit=200&offset=0`;
+        const response = await fetch(url);
+        if (!response.ok) return [];
+        const data: ApiOTCTransaction[] = await response.json();
+        return data.map(mapApiTransaction);
+    } catch (error) {
+        console.warn(`[OTC API] Failed for ${date}:`, error);
+        return [];
+    }
+}
+
+/**
+ * Fetch OTC transactions for a range of dates in parallel
+ */
+export async function fetchOtcTransactionsInRange(
+    dateFrom: string,
+    dateTo: string = getTodayDate()
+): Promise<OtcTransaction[]> {
+    const start = new Date(dateFrom);
+    const end = new Date(dateTo);
+    const dates: string[] = [];
+
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        dates.push(d.toISOString().split('T')[0]);
+    }
+
+    console.log(`[OTC API] Fetching range: ${dateFrom} to ${dateTo} (${dates.length} days)`);
+
+    // Fetch in batches of 7 days to avoid overwhelming the server
+    const batchSize = 7;
+    const allTransactions: OtcTransaction[] = [];
+
+    for (let i = 0; i < dates.length; i += batchSize) {
+        const batch = dates.slice(i, i + batchSize);
+        const results = await Promise.all(batch.map(date => fetchOtcTransactionsByDate(date)));
+        results.forEach(dayTxns => allTransactions.push(...dayTxns));
+    }
+
+    return allTransactions.sort((a, b) => {
+        const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+        const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+        return timeB - timeA;
+    });
+}
+
+/**
  * Check if OTC API is configured (always true now since server handles it)
  */
 export function isOtcApiConfigured(): boolean {

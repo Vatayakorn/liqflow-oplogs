@@ -644,3 +644,228 @@ export async function getDailySummary(logDate: string): Promise<DailySummary | n
     };
 }
 
+// ============================================
+// Customer Behavior Analysis
+// ============================================
+
+import type {
+    CustomerProfile,
+    CustomerAnalytics,
+    BehaviorType,
+    OtcTransactionSummary
+} from './customerAnalytics';
+import { saveCustomerAnalytics } from './customerAnalytics';
+
+export interface CustomerBehaviorAnalysis {
+    behavior_type: BehaviorType;
+    engagement_score: number;
+    sentiment: 'positive' | 'neutral' | 'negative';
+    summary: string;
+    recommendations: string[];
+    risk_flags: string[];
+    key_topics: string[];
+    needs_followup: boolean;
+    followup_reason?: string;
+    followup_priority: 'low' | 'normal' | 'high' | 'urgent';
+}
+
+/**
+ * Build prompt for customer behavior analysis
+ */
+function buildCustomerAnalysisPrompt(
+    profile: CustomerProfile
+): string {
+    const { name, transactions, chatMessages } = profile;
+
+    // Perspective: Original API is System-Centric
+    // System BUY (from customer) = Customer SELL
+    // System SELL (to customer) = Customer BUY
+    const customerBuyTxns = transactions.filter(tx => tx.action === 'SELL');
+    const customerSellTxns = transactions.filter(tx => tx.action === 'BUY');
+
+    const buyVolume = customerBuyTxns.reduce((s, t) => s + t.amount, 0);
+    const sellVolume = customerSellTxns.reduce((s, t) => s + t.amount, 0);
+    const totalVolume = buyVolume + sellVolume;
+    const avgSize = transactions.length > 0 ? totalVolume / transactions.length : 0;
+
+    // Time analysis
+    const firstTxDate = transactions.length > 0
+        ? transactions[transactions.length - 1].date
+        : 'ไม่มี';
+    const lastTxDate = transactions.length > 0
+        ? transactions[0].date
+        : 'ไม่มี';
+
+    // Chat summary
+    const userMessages = chatMessages.filter(m => !m.from_is_bot);
+    const recentMessages = userMessages.slice(0, 15); // More context
+    const chatPreview = recentMessages
+        .map(m => `- [${m.created_at}] ${m.from_first_name || 'User'}: "${m.message_text?.substring(0, 150) || '[media]'}"`)
+        .join('\n');
+
+    return `คุณเป็นผู้เชี่ยวชาญด้าน Customer Relationship และ OTC Crypto Trading วิเคราะห์พฤติกรรมลูกค้านี้ โดยยึดมุมมองของ "ลูกค้า" (Customer Perspective) เป็นหลัก
+
+## ข้อมูลลูกค้า: ${name}
+
+### สรุปประวัติการทำธุรกรรม (มุมมองของ "ลูกค้า")
+- จำนวนธุรกรรมรวม: ${transactions.length} ครั้ง
+- ลูกค้าเป็นฝ่าย "ซื้อ" (BUY): ${customerBuyTxns.length} ครั้ง (Volume: ${buyVolume.toLocaleString()} USDT)
+- ลูกค้าเป็นฝ่าย "ขาย" (SELL): ${customerSellTxns.length} ครั้ง (Volume: ${sellVolume.toLocaleString()} USDT)
+- Volume รวมสุทธิ: ${totalVolume.toLocaleString()} USDT
+- ขนาดธุรกรรมเฉลี่ย: ${avgSize.toLocaleString()} USDT
+- ธุรกรรมแรก: ${firstTxDate}
+- ธุรกรรมล่าสุด: ${lastTxDate}
+
+### ข้อมูลการสนทนาล่าสุด
+- จำนวนข้อความทั้งหมด: ${chatMessages.length} (จากลูกค้า: ${userMessages.length})
+
+ตัวอย่างแชทล่าสุด:
+${chatPreview || 'ไม่มีข้อความ'}
+
+---
+
+## คำอธิบายเพิ่มเติมสำหรับการวิเคราะห์:
+1. การระบุว่าลูกค้า "ซื้อ" หรือ "ขาย" ให้ดูจากส่วน "สรุปประวัติการทำธุรกรรม (มุมมองของลูกค้า)" ด้านบนเป็นแหล่งข้อมูลหลัก
+2. วิเคราะห์น้ำเสียง (Sentiment) และความสนใจจากตัวอย่างแชท
+3. ตรวจสอบความสอดคล้องระหว่างสิ่งที่คุยในแชทกับธุรกรรมที่เกิดขึ้นจริง
+
+---
+
+## หมวดหมู่พฤติกรรมลูกค้า (เลือก 1):
+- **hot_lead**: มีความต้องการเทรดสูง ตัดสินใจเร็ว ตอบสนองดี
+- **negotiator**: ชอบต่อรองราคา/ค่าคอมมิชชั่น รอจังหวะราคาที่พอใจ
+- **window_shopper**: สอบถามราคาบ่อยแต่ไม่จบรายการเทรด
+- **ghost**: หายไปหลังจากได้รับราคา ไม่มีการตอบกลับ
+- **vip_repeat**: ลูกค้าประจำที่ทำรายการต่อเนื่องและมี Volume สูง
+- **new_prospect**: ลูกค้าใหม่ที่เพิ่งเริ่มติดต่อ
+
+---
+
+ตอบเป็น JSON เท่านั้น ในรูปแบบ:
+{
+  "behavior_type": "hot_lead | negotiator | window_shopper | ghost | vip_repeat | new_prospect",
+  "engagement_score": 0.0 to 1.0,
+  "sentiment": "positive | neutral | negative",
+  "summary": "สรุปพฤติกรรมลูกค้า 2-3 ประโยค โดยระบุชัดเจนว่าลูกค้า ซื้อ/ขาย อย่างไร (ภาษาไทย)",
+  "recommendations": ["คำแนะนำสำหรับทีมงาน"],
+  "risk_flags": ["ความเสี่ยงถ้ามี"],
+  "key_topics": ["หัวข้อที่ลูกค้าสนใจ"],
+  "needs_followup": true/false,
+  "followup_reason": "เหตุผล",
+  "followup_priority": "low | normal | high | urgent"
+}`;
+}
+
+/**
+ * Generate AI analysis for a customer
+ */
+export async function generateCustomerBehaviorAnalysis(
+    profile: CustomerProfile,
+    preferredProvider: 'openai' | 'gemini' | 'auto' = 'auto'
+): Promise<CustomerBehaviorAnalysis & { provider: 'openai' | 'gemini'; model: string }> {
+    const prompt = buildCustomerAnalysisPrompt(profile);
+
+    let result: { content: string; model: string; provider: 'openai' | 'gemini' };
+
+    if (preferredProvider === 'openai') {
+        const openaiResult = await callOpenAI(prompt);
+        result = { ...openaiResult, provider: 'openai' };
+    } else if (preferredProvider === 'gemini') {
+        const geminiResult = await callGemini(prompt);
+        result = { ...geminiResult, provider: 'gemini' };
+    } else {
+        try {
+            const openaiResult = await callOpenAI(prompt);
+            result = { ...openaiResult, provider: 'openai' };
+        } catch (openaiError) {
+            console.warn('OpenAI failed for customer analysis, trying Gemini:', openaiError);
+            try {
+                const geminiResult = await callGemini(prompt);
+                result = { ...geminiResult, provider: 'gemini' };
+            } catch (geminiError) {
+                throw new Error('Failed to analyze customer. Both AI providers unavailable.');
+            }
+        }
+    }
+
+    // Parse JSON response
+    let parsed: Partial<CustomerBehaviorAnalysis>;
+    try {
+        parsed = JSON.parse(result.content);
+    } catch (parseError) {
+        console.error('Failed to parse customer analysis:', result.content);
+        throw new Error('AI returned invalid JSON response');
+    }
+
+    return {
+        behavior_type: parsed.behavior_type || 'new_prospect',
+        engagement_score: Math.min(1, Math.max(0, parsed.engagement_score || 0.5)),
+        sentiment: parsed.sentiment || 'neutral',
+        summary: parsed.summary || 'ไม่สามารถวิเคราะห์ได้',
+        recommendations: parsed.recommendations || [],
+        risk_flags: parsed.risk_flags || [],
+        key_topics: parsed.key_topics || [],
+        needs_followup: parsed.needs_followup || false,
+        followup_reason: parsed.followup_reason,
+        followup_priority: parsed.followup_priority || 'normal',
+        provider: result.provider,
+        model: result.model
+    };
+}
+
+/**
+ * Analyze and save customer behavior
+ */
+export async function analyzeAndSaveCustomerBehavior(
+    profile: CustomerProfile,
+    preferredProvider: 'openai' | 'gemini' | 'auto' = 'auto'
+): Promise<CustomerAnalytics> {
+    // Generate AI analysis
+    const analysis = await generateCustomerBehaviorAnalysis(profile, preferredProvider);
+
+    // Calculate metrics
+    const totalVolume = profile.transactions.reduce((sum, tx) => sum + tx.amount, 0);
+    const avgSize = profile.transactions.length > 0
+        ? totalVolume / profile.transactions.length
+        : 0;
+
+    const lastTxDate = profile.transactions.length > 0
+        ? profile.transactions[0].date
+        : undefined;
+
+    const userMessages = profile.chatMessages.filter(m => !m.from_is_bot);
+    const firstContact = userMessages.length > 0
+        ? userMessages[userMessages.length - 1].created_at
+        : undefined;
+    const lastContact = userMessages.length > 0
+        ? userMessages[0].created_at
+        : undefined;
+
+    // Save to database
+    const savedAnalytics = await saveCustomerAnalytics({
+        customer_name: profile.name,
+        display_name: profile.displayName,
+        behavior_type: analysis.behavior_type,
+        engagement_score: analysis.engagement_score,
+        total_transactions: profile.transactions.length,
+        total_volume: totalVolume,
+        avg_transaction_size: avgSize,
+        last_transaction_date: lastTxDate,
+        total_messages: profile.chatMessages.length,
+        first_contact: firstContact,
+        last_contact: lastContact,
+        sentiment: analysis.sentiment,
+        ai_summary: analysis.summary,
+        recommendations: analysis.recommendations,
+        risk_flags: analysis.risk_flags,
+        key_topics: analysis.key_topics,
+        needs_followup: analysis.needs_followup,
+        followup_reason: analysis.followup_reason,
+        followup_priority: analysis.followup_priority,
+        provider: analysis.provider,
+        model: analysis.model
+    });
+
+    return savedAnalytics;
+}
+

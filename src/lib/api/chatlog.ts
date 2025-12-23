@@ -60,5 +60,12 @@ export async function getChatMessagesForTimeRange(
         throw error;
     }
 
-    return data || [];
+    // Fix double timezone offset: Datbase stores Local time as UTC.
+    // We adjust it back by subtracting 7 hours so the frontend display is correct.
+    const timezoneOffsetMs = 7 * 60 * 60 * 1000;
+
+    return (data || []).map(msg => ({
+        ...msg,
+        created_at: new Date(new Date(msg.created_at).getTime() - timezoneOffsetMs).toISOString()
+    }));
 }
