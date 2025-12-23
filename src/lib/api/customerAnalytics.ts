@@ -229,15 +229,9 @@ export async function getAllCustomers(
         console.error('Error fetching sessions:', error);
     }
 
-    // 2. Fetch from External API
+    // 2. We no longer fetch from the legacy Customer Master List as requested.
+    // Names will be derived directly from transaction data (API + Oplog).
     let apiCustomers: any[] = [];
-    try {
-        const { fetchAllCustomersFromAPI } = await import('./customerApi');
-        apiCustomers = await fetchAllCustomersFromAPI();
-        console.log(`[getAllCustomers] Found ${apiCustomers.length} customers in external API`);
-    } catch (apiError) {
-        console.warn('[getAllCustomers] Failed to fetch from external API:', apiError);
-    }
 
     // 3. Fetch transactions from API (LF_API_BASE_URL) to enrich the count/volume
     let recentApiTransactions: any[] = [];
