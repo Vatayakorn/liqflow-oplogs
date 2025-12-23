@@ -13,6 +13,11 @@
     import { getMarketDataRange, type MarketDataPoint } from "$lib/api/market";
     import { combineDateTime, addHours } from "$lib/utils/date";
     import PrefundTracker from "$lib/components/PrefundTracker.svelte";
+    import ChatLog from "$lib/components/ChatLog.svelte";
+    import {
+        getChatMessagesForTimeRange,
+        type ChatMessage,
+    } from "$lib/api/chatlog";
 
     $: sessionId = $page.params.id;
 
@@ -26,6 +31,10 @@
     let marketData: Record<string, MarketDataPoint[]> = {};
     let chartLoading = false;
     let availableSources: string[] = [];
+
+    // Chat Log State
+    let chatMessages: ChatMessage[] = [];
+    let chatLoading = false;
 
     $: bitkubBook = session?.market_context?.bitkub;
     $: binanceBook = session?.market_context?.binanceTH;
@@ -115,6 +124,7 @@
                 // Or I can just fetch it here.
 
                 await fetchChartData(session);
+                await fetchChatLog(session);
             }
         } catch (error) {
             console.error("Failed to load session:", error);
@@ -257,6 +267,62 @@
             console.error("Error fetching chart data", e);
         } finally {
             chartLoading = false;
+        }
+    }
+
+    async function fetchChatLog(session: any) {
+        if (!session.day_id) return;
+
+        chatLoading = true;
+        try {
+            // Fetch the day record to get the log_date
+            const { data: dayData } = await import("$lib/supabaseClient").then(
+                (m) =>
+                    m.supabase
+                        .from("oplog_days")
+                        .select("log_date")
+                        .eq("id", session.day_id)
+                        .single(),
+            );
+
+            if (!dayData) return;
+
+            const dateStr = dayData.log_date;
+
+            // Calculate datetime range using session start/end times
+            const sessionStart = session.start_time || "00:00";
+            const sessionEnd = session.end_time || "23:59";
+
+            // IMPORTANT: Bot stores Thai local time AS IF it were UTC
+            // So we need to query using Thai time values directly as UTC strings
+            // (bypassing local timezone conversion)
+            const startTime =
+                sessionStart.length === 5 ? `${sessionStart}:00` : sessionStart;
+            const endTime =
+                sessionEnd.length === 5 ? `${sessionEnd}:00` : sessionEnd;
+
+            let startStr = `${dateStr}T${startTime}.000Z`;
+            let endStr = `${dateStr}T${endTime}.000Z`;
+
+            // Handle overnight shifts
+            if (sessionEnd < sessionStart) {
+                // End time is next day - add 1 day
+                const nextDay = new Date(dateStr);
+                nextDay.setDate(nextDay.getDate() + 1);
+                const nextDateStr = nextDay.toISOString().split("T")[0];
+                endStr = `${nextDateStr}T${endTime}.000Z`;
+            }
+
+            console.log(
+                `[ChatLog] Fetching messages from ${startStr} to ${endStr}`,
+            );
+
+            chatMessages = await getChatMessagesForTimeRange(startStr, endStr);
+            console.log(`[ChatLog] Found ${chatMessages.length} messages`);
+        } catch (e) {
+            console.error("Error fetching chat log", e);
+        } finally {
+            chatLoading = false;
         }
     }
 
@@ -1292,6 +1358,16 @@
                     </div>
                 </div>
             {/if}
+
+            <!-- Chat Log Section -->
+            <div class="detail-card">
+                <h3>
+                    💬 Chat Log {chatMessages.length > 0
+                        ? `(${chatMessages.length})`
+                        : ""}
+                </h3>
+                <ChatLog messages={chatMessages} loading={chatLoading} />
+            </div>
 
             {#if session.edit_history && session.edit_history.length > 0}
                 <div class="detail-card edit-history-card">
