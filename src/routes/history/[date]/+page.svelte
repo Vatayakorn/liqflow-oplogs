@@ -7,6 +7,7 @@
     import { onMount } from "svelte";
     import { goto } from "$app/navigation";
     import SessionList from "$lib/components/SessionList.svelte";
+    import DailySummary from "$lib/components/DailySummary.svelte";
     import {
         listSessionsByDate,
         deleteSession,
@@ -15,7 +16,7 @@
     import { toast } from "$lib/stores/toast";
     import { isSupabaseConfigured } from "$lib/supabaseClient";
 
-    $: dateParam = $page.params.date;
+    $: dateParam = $page.params.date ?? "";
 
     let sessions: OplogSession[] = [];
     let isLoading = true;
@@ -105,13 +106,20 @@
             <p>Loading...</p>
         </div>
     {:else}
-        <SessionList
-            {sessions}
-            showDelete={true}
-            on:delete={handleDeleteSession}
-            on:view={handleViewSession}
-            on:edit={handleEditSession}
-        />
+        <!-- Daily Summary Section -->
+        <DailySummary logDate={dateParam} {sessions} />
+
+        <!-- Sessions List -->
+        <div class="sessions-section">
+            <h2 class="section-title">Sessions ({sessions.length})</h2>
+            <SessionList
+                {sessions}
+                showDelete={true}
+                on:delete={handleDeleteSession}
+                on:view={handleViewSession}
+                on:edit={handleEditSession}
+            />
+        </div>
     {/if}
 </div>
 
@@ -197,5 +205,18 @@
         .date-title h1 {
             font-size: 1.25rem;
         }
+    }
+
+    .sessions-section {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .section-title {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--color-text-secondary);
     }
 </style>

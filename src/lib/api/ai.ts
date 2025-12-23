@@ -41,7 +41,7 @@ const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY || '';
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || '';
 
 const OPENAI_MODEL = 'gpt-4o-mini';
-const GEMINI_MODEL = 'gemini-1.5-flash';
+const GEMINI_MODEL = 'gemini-2.0-flash';
 
 // ============================================
 // Prompt Templates
@@ -381,3 +381,266 @@ export function getAIProviderStatus(): { openai: boolean; gemini: boolean } {
         gemini: !!GEMINI_API_KEY
     };
 }
+
+// ============================================
+// Daily Summary Types & Functions
+// ============================================
+
+export interface ShiftStats {
+    volume: number;
+    count: number;
+    buyVolume: number;
+    sellVolume: number;
+    duration: number; // minutes
+}
+
+export interface DailySummary {
+    id?: string;
+    log_date: string;
+    totalVolume: number;
+    transactionCount: number;
+    buyVolume: number;
+    sellVolume: number;
+    shiftStats: Record<'A' | 'B' | 'C', ShiftStats>;
+    summary: string;
+    managementInsights: string[];
+    issues: string[];
+    recommendations: string[];
+    bestShift: 'A' | 'B' | 'C' | null;
+    provider: 'openai' | 'gemini';
+    model: string;
+    created_at?: string;
+}
+
+/**
+ * Aggregate session stats for daily summary
+ */
+function aggregateDailyStats(sessions: OplogSession[]): {
+    totalVolume: number;
+    transactionCount: number;
+    buyVolume: number;
+    sellVolume: number;
+    shiftStats: Record<'A' | 'B' | 'C', ShiftStats>;
+    bestShift: 'A' | 'B' | 'C' | null;
+} {
+    const shiftStats: Record<'A' | 'B' | 'C', ShiftStats> = {
+        A: { volume: 0, count: 0, buyVolume: 0, sellVolume: 0, duration: 0 },
+        B: { volume: 0, count: 0, buyVolume: 0, sellVolume: 0, duration: 0 },
+        C: { volume: 0, count: 0, buyVolume: 0, sellVolume: 0, duration: 0 }
+    };
+
+    let totalVolume = 0;
+    let transactionCount = 0;
+    let buyVolume = 0;
+    let sellVolume = 0;
+
+    sessions.forEach(session => {
+        const shift = session.shift as 'A' | 'B' | 'C';
+        const txns = session.otc_transactions || [];
+
+        txns.forEach(tx => {
+            const amount = tx.amount || 0;
+            totalVolume += amount;
+            transactionCount++;
+            shiftStats[shift].volume += amount;
+            shiftStats[shift].count++;
+
+            if (tx.action === 'BUY') {
+                buyVolume += amount;
+                shiftStats[shift].buyVolume += amount;
+            } else {
+                sellVolume += amount;
+                shiftStats[shift].sellVolume += amount;
+            }
+        });
+
+        // Calculate duration
+        if (session.start_time && session.end_time) {
+            const [sh, sm] = session.start_time.split(':').map(Number);
+            const [eh, em] = session.end_time.split(':').map(Number);
+            let duration = (eh * 60 + em) - (sh * 60 + sm);
+            if (duration < 0) duration += 24 * 60; // Handle overnight
+            shiftStats[shift].duration += duration;
+        }
+    });
+
+    // Find best shift by volume
+    let bestShift: 'A' | 'B' | 'C' | null = null;
+    let maxVolume = 0;
+    (['A', 'B', 'C'] as const).forEach(shift => {
+        if (shiftStats[shift].volume > maxVolume) {
+            maxVolume = shiftStats[shift].volume;
+            bestShift = shift;
+        }
+    });
+
+    return { totalVolume, transactionCount, buyVolume, sellVolume, shiftStats, bestShift };
+}
+
+/**
+ * Build prompt for daily summary
+ */
+function buildDailyPrompt(logDate: string, sessions: OplogSession[], stats: ReturnType<typeof aggregateDailyStats>): string {
+    const formatVolume = (v: number) => v >= 1000000 ? `${(v / 1000000).toFixed(2)}M` : v >= 1000 ? `${(v / 1000).toFixed(1)}K` : v.toString();
+
+    let sessionDetails = '';
+    sessions.forEach(s => {
+        const txns = s.otc_transactions || [];
+        sessionDetails += `- Shift ${s.shift} (${s.start_time}-${s.end_time}): ${txns.length} txns, Broker: ${s.broker}, Trader: ${s.trader}\n`;
+    });
+
+    return `คุณเป็นผู้เชี่ยวชาญด้าน OTC Trading วิเคราะห์สรุปประจำวันสำหรับผู้บริหาร
+
+## ข้อมูลประจำวัน: ${logDate}
+
+### สถิติรวม
+- Volume รวม: ${formatVolume(stats.totalVolume)} USDT
+- จำนวน Transaction: ${stats.transactionCount}
+- BUY: ${formatVolume(stats.buyVolume)} USDT
+- SELL: ${formatVolume(stats.sellVolume)} USDT
+
+### Breakdown ตาม Shift
+- Shift A: ${formatVolume(stats.shiftStats.A.volume)} USDT (${stats.shiftStats.A.count} txns)
+- Shift B: ${formatVolume(stats.shiftStats.B.volume)} USDT (${stats.shiftStats.B.count} txns)
+- Shift C: ${formatVolume(stats.shiftStats.C.volume)} USDT (${stats.shiftStats.C.count} txns)
+
+### Sessions
+${sessionDetails}
+
+---
+
+ตอบเป็น JSON เท่านั้น ในรูปแบบ:
+{
+  "summary": "สรุปภาพรวมประจำวัน 2-3 ประโยค ภาษาไทย",
+  "managementInsights": ["insight สำหรับผู้บริหาร 1", "insight 2"],
+  "issues": ["ปัญหาที่พบ ถ้ามี"],
+  "recommendations": ["ข้อแนะนำสำหรับวันถัดไป"]
+}`;
+}
+
+/**
+ * Generate daily summary for all sessions of a date
+ */
+export async function generateDailySummary(
+    logDate: string,
+    sessions: OplogSession[],
+    preferredProvider: 'openai' | 'gemini' | 'auto' = 'auto'
+): Promise<DailySummary> {
+    const stats = aggregateDailyStats(sessions);
+    const prompt = buildDailyPrompt(logDate, sessions, stats);
+
+    let result: { content: string; model: string; provider: 'openai' | 'gemini' };
+
+    if (preferredProvider === 'openai') {
+        const openaiResult = await callOpenAI(prompt);
+        result = { ...openaiResult, provider: 'openai' };
+    } else if (preferredProvider === 'gemini') {
+        const geminiResult = await callGemini(prompt);
+        result = { ...geminiResult, provider: 'gemini' };
+    } else {
+        try {
+            const openaiResult = await callOpenAI(prompt);
+            result = { ...openaiResult, provider: 'openai' };
+        } catch (openaiError) {
+            console.warn('OpenAI failed, trying Gemini:', openaiError);
+            try {
+                const geminiResult = await callGemini(prompt);
+                result = { ...geminiResult, provider: 'gemini' };
+            } catch (geminiError) {
+                throw new Error('Failed to generate daily summary. Both AI providers unavailable.');
+            }
+        }
+    }
+
+    let parsed: any;
+    try {
+        parsed = JSON.parse(result.content);
+    } catch {
+        throw new Error('AI returned invalid JSON response');
+    }
+
+    return {
+        log_date: logDate,
+        ...stats,
+        summary: parsed.summary || 'ไม่สามารถสร้างสรุปได้',
+        managementInsights: parsed.managementInsights || [],
+        issues: parsed.issues || [],
+        recommendations: parsed.recommendations || [],
+        provider: result.provider,
+        model: result.model
+    };
+}
+
+/**
+ * Save daily summary to Supabase
+ */
+export async function saveDailySummary(summary: DailySummary): Promise<DailySummary> {
+    const { data, error } = await supabase
+        .from('day_ai_summaries')
+        .upsert({
+            log_date: summary.log_date,
+            total_volume: summary.totalVolume,
+            transaction_count: summary.transactionCount,
+            buy_volume: summary.buyVolume,
+            sell_volume: summary.sellVolume,
+            shift_stats: summary.shiftStats,
+            summary_text: summary.summary,
+            insights: {
+                managementInsights: summary.managementInsights,
+                issues: summary.issues,
+                recommendations: summary.recommendations,
+                bestShift: summary.bestShift
+            },
+            provider: summary.provider,
+            model: summary.model
+        }, {
+            onConflict: 'log_date'
+        })
+        .select()
+        .single();
+
+    if (error) {
+        console.error('Failed to save daily summary:', error);
+        throw new Error(`Failed to save daily summary: ${error.message}`);
+    }
+
+    return {
+        ...summary,
+        id: data.id,
+        created_at: data.created_at
+    };
+}
+
+/**
+ * Get existing daily summary for a date
+ */
+export async function getDailySummary(logDate: string): Promise<DailySummary | null> {
+    const { data, error } = await supabase
+        .from('day_ai_summaries')
+        .select('*')
+        .eq('log_date', logDate)
+        .single();
+
+    if (error || !data) {
+        return null;
+    }
+
+    return {
+        id: data.id,
+        log_date: data.log_date,
+        totalVolume: data.total_volume,
+        transactionCount: data.transaction_count,
+        buyVolume: data.buy_volume,
+        sellVolume: data.sell_volume,
+        shiftStats: data.shift_stats,
+        summary: data.summary_text,
+        managementInsights: data.insights?.managementInsights || [],
+        issues: data.insights?.issues || [],
+        recommendations: data.insights?.recommendations || [],
+        bestShift: data.insights?.bestShift || null,
+        provider: data.provider,
+        model: data.model,
+        created_at: data.created_at
+    };
+}
+
