@@ -29,7 +29,7 @@
     // Filters
     let searchQuery = "";
     let selectedBehavior: BehaviorType | "all" = "all";
-    let dateRange: "7d" | "30d" | "all" = "30d";
+    let dateRange: "1d" | "3d" | "7d" | "30d" | "all" = "30d";
 
     // Summary stats
     let summary = {
@@ -64,7 +64,15 @@
             let dateFrom: string | undefined;
             const now = new Date();
 
-            if (dateRange === "7d") {
+            if (dateRange === "1d") {
+                const from = new Date(now);
+                from.setDate(from.getDate() - 1);
+                dateFrom = from.toISOString().split("T")[0];
+            } else if (dateRange === "3d") {
+                const from = new Date(now);
+                from.setDate(from.getDate() - 3);
+                dateFrom = from.toISOString().split("T")[0];
+            } else if (dateRange === "7d") {
                 const from = new Date(now);
                 from.setDate(from.getDate() - 7);
                 dateFrom = from.toISOString().split("T")[0];
@@ -168,6 +176,8 @@
                 on:change={() => loadData()}
                 class="date-select"
             >
+                <option value="1d">วันนี้</option>
+                <option value="3d">3 วันล่าสุด</option>
                 <option value="7d">7 วันล่าสุด</option>
                 <option value="30d">30 วันล่าสุด</option>
                 <option value="all">ทั้งหมด</option>
