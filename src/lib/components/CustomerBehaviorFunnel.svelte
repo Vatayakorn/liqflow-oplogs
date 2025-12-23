@@ -52,7 +52,17 @@
             >
                 <span class="segment-emoji">{segment.config.emoji}</span>
                 <div class="segment-info">
-                    <span class="segment-label">{segment.config.label}</span>
+                    <div class="label-row">
+                        <span class="segment-label">{segment.config.label}</span
+                        >
+                        <div
+                            class="info-trigger"
+                            title={segment.config.criteria}
+                        >
+                            <span class="info-icon">ⓘ</span>
+                            <div class="tooltip">{segment.config.criteria}</div>
+                        </div>
+                    </div>
                     <span class="segment-label-th"
                         >{segment.config.labelTh}</span
                     >
@@ -151,6 +161,72 @@
         display: flex;
         flex-direction: column;
         gap: 2px;
+    }
+
+    .label-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .info-trigger {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: help;
+        color: var(--color-text-tertiary, #8e8e93);
+        transition: color 0.2s ease;
+    }
+
+    .info-trigger:hover {
+        color: var(--segment-color);
+    }
+
+    .info-icon {
+        font-size: 0.8rem;
+        background: rgba(0, 0, 0, 0.05);
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-style: normal;
+    }
+
+    .tooltip {
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%) translateY(-8px);
+        background: #1d1d1f;
+        color: white;
+        padding: 6px 10px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        white-space: nowrap;
+        opacity: 0;
+        pointer-events: none;
+        transition: all 0.2s ease;
+        z-index: 100;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        font-weight: 500;
+    }
+
+    .tooltip::after {
+        content: "";
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        border: 5px solid transparent;
+        border-top-color: #1d1d1f;
+    }
+
+    .info-trigger:hover .tooltip {
+        opacity: 1;
+        transform: translateX(-50%) translateY(-4px);
     }
 
     .segment-label {
