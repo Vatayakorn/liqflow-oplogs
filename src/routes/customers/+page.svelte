@@ -7,7 +7,7 @@
     import { goto } from "$app/navigation";
     import CustomerCard from "$lib/components/CustomerCard.svelte";
     import CustomerBehaviorFunnel from "$lib/components/CustomerBehaviorFunnel.svelte";
-    import AlertBanner from "$lib/components/AlertBanner.svelte";
+    import CustomerBIInsights from "$lib/components/CustomerBIInsights.svelte";
     import {
         getAllCustomers,
         getFollowupAlerts,
@@ -187,11 +187,10 @@
             <button on:click={() => loadData()}>ลองใหม่</button>
         </div>
     {:else}
-        <!-- Alert Banner -->
-        <AlertBanner
-            {alerts}
-            on:customerClick={handleAlertClick}
-            on:viewAll={() => (selectedBehavior = "ghost")}
+        <!-- BI Insights Dashboard -->
+        <CustomerBIInsights
+            {customers}
+            on:customerClick={handleCustomerClick}
         />
 
         <!-- Stats Overview -->
