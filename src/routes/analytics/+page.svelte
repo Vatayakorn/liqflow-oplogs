@@ -16,9 +16,9 @@
     let marketData: MarketComparisonPoint[] = [];
     let isLoading = true;
 
-    // Filters
-    let spreadHours = 24;
-    let prefundDays = 7;
+    let spreadHours = 6;
+    let marketHours = 6;
+    let prefundHours = 6;
 
     onMount(async () => {
         await Promise.all([
@@ -39,7 +39,7 @@
 
     async function loadPrefundData() {
         try {
-            prefundData = await getPrefundHistory(prefundDays);
+            prefundData = await getPrefundHistory(prefundHours);
         } catch (e) {
             toast.error("Failed to load prefund data");
         }
@@ -47,7 +47,7 @@
 
     async function loadMarketData() {
         try {
-            marketData = await getMarketComparison(spreadHours); // Reuse spreadHours for comparison
+            marketData = await getMarketComparison(marketHours);
         } catch (e) {
             toast.error("Failed to load market context data");
         }
@@ -55,10 +55,13 @@
 
     $: if (spreadHours) {
         loadSpreadData();
+    }
+
+    $: if (marketHours) {
         loadMarketData();
     }
 
-    $: if (prefundDays) {
+    $: if (prefundHours) {
         loadPrefundData();
     }
 </script>
@@ -86,6 +89,15 @@
                     <div class="title-group">
                         <span class="icon">🔍</span>
                         <h3>Market Price Comparison (ALL)</h3>
+                    </div>
+                    <div class="controls">
+                        <select bind:value={marketHours}>
+                            <option value={1}>1 Hour</option>
+                            <option value={3}>3 Hours</option>
+                            <option value={6}>6 Hours</option>
+                            <option value={12}>12 Hours</option>
+                            <option value={24}>24 Hours</option>
+                        </select>
                     </div>
                 </div>
 
@@ -202,10 +214,12 @@
                         <h3>Prefund Status History</h3>
                     </div>
                     <div class="controls">
-                        <select bind:value={prefundDays}>
-                            <option value={7}>7 Days</option>
-                            <option value={14}>14 Days</option>
-                            <option value={30}>30 Days</option>
+                        <select bind:value={prefundHours}>
+                            <option value={1}>1 Hour</option>
+                            <option value={3}>3 Hours</option>
+                            <option value={6}>6 Hours</option>
+                            <option value={12}>12 Hours</option>
+                            <option value={24}>24 Hours</option>
                         </select>
                     </div>
                 </div>

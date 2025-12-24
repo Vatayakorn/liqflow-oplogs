@@ -23,81 +23,136 @@ export interface MarketComparisonPoint {
 
 /**
  * Fetch Spread Trend for the last N hours
+ * Queries market_data directly to avoid view timeout issues
  */
-export async function getSpreadTrend(hours = 24): Promise<SpreadDataPoint[]> {
+export async function getSpreadTrend(hours = 6): Promise<SpreadDataPoint[]> {
     const startTime = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
 
     const { data, error } = await supabase
-        .from('spread_trend_1m')
-        .select('*')
-        .gte('bucket', startTime)
-        .order('bucket', { ascending: true });
+        .from('market_data')
+        .select('created_at, source, price')
+        .in('source', ['bitkub', 'binance_th'])
+        .gte('created_at', startTime)
+        .order('created_at', { ascending: true })
+        .limit(10000);
 
     if (error) {
         console.error('Error fetching spread trend:', error);
         return [];
     }
 
-    const timezoneOffsetSeconds = new Date().getTimezoneOffset() * -60;
+    if (!data || data.length === 0) return [];
 
-    return data.map(pt => ({
-        time: Math.floor(new Date(pt.bucket).getTime() / 1000) + timezoneOffsetSeconds,
-        bitkub: Number(pt.bitkub_price),
-        binance: Number(pt.binance_price),
-        spread: Number(pt.spread),
-        abs_spread: Number(pt.abs_spread)
-    }));
+    // Group by minute bucket
+    const bucketMap = new Map<string, { bitkub: number[], binance: number[] }>();
+
+    data.forEach(pt => {
+        const bucket = new Date(pt.created_at);
+        bucket.setSeconds(0, 0);
+        const key = bucket.toISOString();
+
+        if (!bucketMap.has(key)) bucketMap.set(key, { bitkub: [], binance: [] });
+        const entry = bucketMap.get(key)!;
+
+        if (pt.source === 'bitkub') entry.bitkub.push(Number(pt.price));
+        else if (pt.source === 'binance_th') entry.binance.push(Number(pt.price));
+    });
+
+    const tzOffset = new Date().getTimezoneOffset() * -60;
+    const result: SpreadDataPoint[] = [];
+
+    bucketMap.forEach((v, key) => {
+        if (v.bitkub.length > 0 && v.binance.length > 0) {
+            const avgBk = v.bitkub.reduce((a, b) => a + b, 0) / v.bitkub.length;
+            const avgBn = v.binance.reduce((a, b) => a + b, 0) / v.binance.length;
+            result.push({
+                time: Math.floor(new Date(key).getTime() / 1000) + tzOffset,
+                bitkub: avgBk, binance: avgBn,
+                spread: avgBk - avgBn, abs_spread: Math.abs(avgBk - avgBn)
+            });
+        }
+    });
+
+    return result.sort((a, b) => a.time - b.time);
 }
 
 /**
- * Fetch Prefund History for the last N days
+ * Fetch Prefund History for the last N hours
  */
-export async function getPrefundHistory(days = 7): Promise<PrefundDataPoint[]> {
-    const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+export async function getPrefundHistory(hours = 6): Promise<PrefundDataPoint[]> {
+    const startTime = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
 
     const { data, error } = await supabase
-        .from('prefund_history_daily')
-        .select('*')
-        .gte('log_date', startDate)
-        .order('log_date', { ascending: true });
+        .from('oplog_sessions')
+        .select('created_at, prefund_current, prefund_target')
+        .gte('created_at', startTime)
+        .not('prefund_current', 'is', null)
+        .order('created_at', { ascending: true })
+        .limit(500);
 
     if (error) {
         console.error('Error fetching prefund history:', error);
         return [];
     }
 
+    if (!data || data.length === 0) return [];
+
     const timezoneOffsetSeconds = new Date().getTimezoneOffset() * -60;
 
     return data.map(pt => ({
-        time: Math.floor(new Date(pt.log_date).getTime() / 1000) + timezoneOffsetSeconds,
-        current: Number(pt.avg_current),
-        target: Number(pt.avg_target),
-        date: pt.log_date
+        time: Math.floor(new Date(pt.created_at).getTime() / 1000) + timezoneOffsetSeconds,
+        current: Number(pt.prefund_current) || 0,
+        target: Number(pt.prefund_target) || 0,
+        date: pt.created_at
     }));
 }
 
 /**
  * Fetch Market Comparison for the last N hours
+ * Queries market_data directly to avoid view timeout issues
  */
-export async function getMarketComparison(hours = 24): Promise<MarketComparisonPoint[]> {
+export async function getMarketComparison(hours = 6): Promise<MarketComparisonPoint[]> {
     const startTime = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
 
     const { data, error } = await supabase
-        .from('market_stats_1m')
-        .select('bucket, source, avg_price')
-        .gte('bucket', startTime)
-        .order('bucket', { ascending: true });
+        .from('market_data')
+        .select('created_at, source, price')
+        .gte('created_at', startTime)
+        .order('created_at', { ascending: true })
+        .limit(10000);
 
     if (error) {
         console.error('Error fetching market comparison:', error);
         return [];
     }
 
-    const timezoneOffsetSeconds = new Date().getTimezoneOffset() * -60;
+    if (!data || data.length === 0) return [];
 
-    return data.map(pt => ({
-        time: Math.floor(new Date(pt.bucket).getTime() / 1000) + timezoneOffsetSeconds,
-        source: pt.source,
-        price: Number(pt.avg_price)
-    }));
+    // Group by minute bucket and source
+    const bucketMap = new Map<string, Map<string, number[]>>();
+
+    data.forEach(pt => {
+        const bucket = new Date(pt.created_at);
+        bucket.setSeconds(0, 0);
+        const key = bucket.toISOString();
+
+        if (!bucketMap.has(key)) bucketMap.set(key, new Map());
+        const sourceMap = bucketMap.get(key)!;
+        if (!sourceMap.has(pt.source)) sourceMap.set(pt.source, []);
+        sourceMap.get(pt.source)!.push(Number(pt.price));
+    });
+
+    const tzOffset = new Date().getTimezoneOffset() * -60;
+    const result: MarketComparisonPoint[] = [];
+
+    bucketMap.forEach((sourceMap, key) => {
+        sourceMap.forEach((prices, source) => {
+            result.push({
+                time: Math.floor(new Date(key).getTime() / 1000) + tzOffset,
+                source, price: prices.reduce((a, b) => a + b, 0) / prices.length
+            });
+        });
+    });
+
+    return result.sort((a, b) => a.time - b.time);
 }
