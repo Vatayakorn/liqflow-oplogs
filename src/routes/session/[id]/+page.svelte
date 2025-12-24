@@ -19,11 +19,6 @@
         type ChatMessage,
     } from "$lib/api/chatlog";
     import AISummary from "$lib/components/AISummary.svelte";
-    import SpreadRecordModal from "$lib/components/SpreadRecordModal.svelte";
-    import {
-        getSpreadRecordByTransaction,
-        type SpreadRecord,
-    } from "$lib/api/spreadTrackingApi";
 
     $: sessionId = $page.params.id;
 
@@ -42,25 +37,8 @@
     let chatMessages: ChatMessage[] = [];
     let chatLoading = false;
 
-    // Spread Record Modal State
-    let showSpreadModal = false;
-    let selectedTransaction: {
-        id: string;
-        customerName: string;
-        action: "BUY" | "SELL";
-        amount: number;
-        rate: number;
-    } | null = null;
-    let spreadRecordsMap: Map<string, SpreadRecord> = new Map();
-
     $: bitkubBook = session?.market_context?.bitkub;
     $: binanceBook = session?.market_context?.binanceTH;
-
-    // Exchange prices for the modal (Binance TH)
-    $: exchangePrices =
-        binanceBook && binanceBook.bids?.[0] && binanceBook.asks?.[0]
-            ? { bid: binanceBook.bids[0].price, ask: binanceBook.asks[0].price }
-            : null;
 
     const sourceColors: Record<string, string> = {
         bitkub: "#27AE60", // Green
@@ -148,7 +126,6 @@
 
                 await fetchChartData(session);
                 await fetchChatLog(session);
-                await loadSpreadRecords(session);
             }
         } catch (error) {
             console.error("Failed to load session:", error);
@@ -348,53 +325,6 @@
         } finally {
             chatLoading = false;
         }
-    }
-
-    // Load existing spread records for all transactions
-    async function loadSpreadRecords(session: OplogSession) {
-        if (!session.otc_transactions || session.otc_transactions.length === 0)
-            return;
-
-        try {
-            const newMap = new Map<string, SpreadRecord>();
-
-            // Load spread records for each transaction
-            for (const tx of session.otc_transactions) {
-                if (tx.id) {
-                    const record = await getSpreadRecordByTransaction(tx.id);
-                    if (record) {
-                        newMap.set(tx.id, record);
-                    }
-                }
-            }
-
-            spreadRecordsMap = newMap;
-            console.log(
-                `[SpreadTrack] Loaded ${spreadRecordsMap.size} spread records`,
-            );
-        } catch (e) {
-            console.error("Error loading spread records", e);
-        }
-    }
-
-    // Open spread record modal for a transaction
-    function openSpreadModal(tx: any) {
-        selectedTransaction = {
-            id: tx.id,
-            customerName: tx.customerName,
-            action: tx.action as "BUY" | "SELL",
-            amount: tx.amount,
-            rate: tx.rate || 0,
-        };
-        showSpreadModal = true;
-    }
-
-    // Handle spread record saved
-    async function handleSpreadSaved() {
-        if (session) {
-            await loadSpreadRecords(session);
-        }
-        toast.success("บันทึก Spread Record เรียบร้อย");
     }
 
     async function handleDelete() {
@@ -1243,13 +1173,10 @@
                                         <th>Price</th>
                                         <th>Total (THB)</th>
                                         <th>Status</th>
-                                        <th>Spread</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {#each session.otc_transactions as tx}
-                                        {@const spreadRecord =
-                                            spreadRecordsMap.get(tx.id)}
                                         <tr>
                                             <td>{tx.customerName}</td>
                                             <td class={tx.action.toLowerCase()}
@@ -1268,29 +1195,6 @@
                                                     "-"}</td
                                             >
                                             <td>{tx.status}</td>
-                                            <td class="spread-cell">
-                                                {#if spreadRecord}
-                                                    <span
-                                                        class="spread-recorded"
-                                                        title="Payout: {spreadRecord.referrer_payout.toFixed(
-                                                            2,
-                                                        )} ฿"
-                                                    >
-                                                        ✅ {spreadRecord.real_spread.toFixed(
-                                                            3,
-                                                        )}
-                                                    </span>
-                                                {:else}
-                                                    <button
-                                                        class="btn-add-spread"
-                                                        on:click={() =>
-                                                            openSpreadModal(tx)}
-                                                        title="บันทึก Spread"
-                                                    >
-                                                        💰 Add
-                                                    </button>
-                                                {/if}
-                                            </td>
                                         </tr>
                                     {/each}
                                 </tbody>
@@ -1515,19 +1419,6 @@
         </div>
     {/if}
 </div>
-
-<!-- Spread Record Modal -->
-<SpreadRecordModal
-    bind:show={showSpreadModal}
-    sessionId={session?.id}
-    transaction={selectedTransaction}
-    {exchangePrices}
-    on:close={() => {
-        showSpreadModal = false;
-        selectedTransaction = null;
-    }}
-    on:saved={handleSpreadSaved}
-/>
 
 <style>
     .session-detail-page {
@@ -1841,42 +1732,6 @@
         font-weight: 600;
     }
 
-    /* Spread Cell Styles */
-    .spread-cell {
-        text-align: center;
-    }
-
-    .btn-add-spread {
-        background: linear-gradient(
-            135deg,
-            rgba(0, 122, 255, 0.1),
-            rgba(52, 199, 89, 0.1)
-        );
-        border: 1px solid rgba(0, 122, 255, 0.3);
-        color: var(--color-primary, #007aff);
-        padding: 0.25rem 0.5rem;
-        border-radius: 6px;
-        font-size: 0.75rem;
-        font-weight: 500;
-        cursor: pointer;
-        transition: all 0.2s ease;
-    }
-
-    .btn-add-spread:hover {
-        background: linear-gradient(
-            135deg,
-            rgba(0, 122, 255, 0.2),
-            rgba(52, 199, 89, 0.2)
-        );
-        transform: scale(1.05);
-    }
-
-    .spread-recorded {
-        color: var(--color-success, #34c759);
-        font-weight: 600;
-        font-size: 0.8rem;
-        cursor: help;
-    }
     /* Chart Styles */
     .charts-section {
         display: flex;
