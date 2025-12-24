@@ -10,8 +10,8 @@ export default defineConfig({
 		VitePWA({
 			registerType: 'prompt', // or 'autoUpdate' - sticking to plan which suggests ReloadPrompt
 			manifest: {
-				name: 'Liqflow OpLog',
-				short_name: 'OpLog',
+				name: 'LiqflowOPLogs',
+				short_name: 'LFOPLogs',
 				description: 'Operations Log for Liqflow',
 				theme_color: '#000000',
 				background_color: '#000000',
