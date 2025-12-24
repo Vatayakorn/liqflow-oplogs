@@ -18,7 +18,7 @@
 
     let spreadHours = 6;
     let marketHours = 6;
-    let prefundHours = 6;
+    let prefundHours = 168;
 
     onMount(async () => {
         await Promise.all([
