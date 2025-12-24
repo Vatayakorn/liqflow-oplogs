@@ -97,6 +97,7 @@
                             <option value={6}>6 Hours</option>
                             <option value={12}>12 Hours</option>
                             <option value={24}>24 Hours</option>
+                            <option value={168}>7 Days</option>
                         </select>
                     </div>
                 </div>
@@ -220,6 +221,7 @@
                             <option value={6}>6 Hours</option>
                             <option value={12}>12 Hours</option>
                             <option value={24}>24 Hours</option>
+                            <option value={168}>7 Days</option>
                         </select>
                     </div>
                 </div>
