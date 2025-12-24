@@ -11,7 +11,7 @@ export default defineConfig({
 			registerType: 'prompt', // or 'autoUpdate' - sticking to plan which suggests ReloadPrompt
 			manifest: {
 				name: 'LiqflowOPLogs',
-				short_name: 'LFOPLogs',
+				short_name: 'LF-OPLogs',
 				description: 'Operations Log for Liqflow',
 				theme_color: '#000000',
 				background_color: '#000000',
