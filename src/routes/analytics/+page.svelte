@@ -16,8 +16,8 @@
     let marketData: MarketComparisonPoint[] = [];
     let isLoading = true;
 
-    let spreadHours = 6;
-    let marketHours = 6;
+    let spreadHours = 24;
+    let marketHours = 24;
     let prefundHours = 168;
 
     onMount(async () => {
