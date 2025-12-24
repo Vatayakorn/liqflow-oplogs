@@ -11,7 +11,7 @@ export interface MarketDataPoint {
 
 /**
  * Fetch market data for a specific time range
- * Uses market_stats_1m view for consistent data (same as Analytics page)
+ * Queries market_data table directly to avoid VIEW timeout issues
  * @param startTime ISO string
  * @param endTime ISO string
  * @returns Array of market data points
@@ -19,40 +19,58 @@ export interface MarketDataPoint {
 export async function getMarketDataRange(startTime: string, endTime: string): Promise<MarketDataPoint[]> {
     console.log(`Fetching market data from ${startTime} to ${endTime}`);
 
-    // Use market_stats_1m view (aggregated 1-minute buckets) for consistent data
-    // This matches what Analytics page uses via getMarketComparison()
+    // Query market_data table directly (not the view which can timeout)
+    // Use created_at for filtering and limit to avoid huge result sets
     const { data, error } = await supabase
-        .from('market_stats_1m')
-        .select('bucket, avg_price, source')
-        .gte('bucket', startTime)
-        .lte('bucket', endTime)
-        .order('bucket', { ascending: true });
+        .from('market_data')
+        .select('created_at, price, source')
+        .gte('created_at', startTime)
+        .lte('created_at', endTime)
+        .not('price', 'is', null)
+        .order('created_at', { ascending: true })
+        .limit(10000);
 
     if (error) {
         console.error('Error fetching market data:', error);
         return [];
     }
 
+    console.log(`Fetched ${data?.length || 0} raw market data points`);
+
     // Transform to lightweight-charts format
     // time must be in seconds
     // NOTE: Add local timezone offset so charts display local time (Lightweight Charts shows UTC by default)
     const timezoneOffsetSeconds = new Date().getTimezoneOffset() * -60;
 
-    const rawData = data
-        .filter(item => item.avg_price !== null && item.avg_price !== undefined)
-        .map(item => ({
-            time: Math.floor(new Date(item.bucket).getTime() / 1000) + timezoneOffsetSeconds,
-            value: Number(item.avg_price),
-            source: item.source
-        }));
+    // Downsample to 1-minute buckets to reduce data points
+    const bucketedData = new Map<string, { time: number; value: number; source: string; count: number }>();
 
-    // Dedup by source and time
-    const dedupedMap = new Map<string, MarketDataPoint>();
+    (data || []).forEach(item => {
+        const timestamp = new Date(item.created_at);
+        // Round to minute
+        timestamp.setSeconds(0, 0);
+        const bucketTime = Math.floor(timestamp.getTime() / 1000) + timezoneOffsetSeconds;
+        const key = `${item.source}-${bucketTime}`;
 
-    rawData.forEach(pt => {
-        const key = `${pt.source}-${pt.time}`;
-        dedupedMap.set(key, pt);
+        const existing = bucketedData.get(key);
+        if (existing) {
+            // Average the prices
+            existing.value = (existing.value * existing.count + Number(item.price)) / (existing.count + 1);
+            existing.count++;
+        } else {
+            bucketedData.set(key, {
+                time: bucketTime,
+                value: Number(item.price),
+                source: item.source,
+                count: 1
+            });
+        }
     });
 
-    return Array.from(dedupedMap.values()).sort((a, b) => a.time - b.time);
+    const result = Array.from(bucketedData.values())
+        .map(({ time, value, source }) => ({ time, value, source }))
+        .sort((a, b) => a.time - b.time);
+
+    console.log(`Aggregated to ${result.length} data points`);
+    return result;
 }
