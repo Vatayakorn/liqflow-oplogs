@@ -24,6 +24,7 @@
         PREFUND_DEFAULTS,
         TEAM_MEMBERS,
         SHIFTS,
+        BROKER_METADATA,
         type OtcTransaction,
     } from "$lib/config/tradingConfig";
     import type {
@@ -1199,6 +1200,8 @@
     <!-- FX Section -->
     <CollapsibleSection
         title="FX (Spot Rate)"
+        logoUrl={BROKER_METADATA.Google.logo}
+        logoStyle="width: 40px; height: auto;"
         icon="📊"
         badge={fxPrices.length || null}
     >
@@ -1288,6 +1291,7 @@
     <!-- Broker (Bitazza) - Manual Entry -->
     <CollapsibleSection
         title="Broker (Bitazza)"
+        logoUrl={BROKER_METADATA.Bitazza.logo}
         icon="🏦"
         badge={bitazzaPrices.length || null}
     >
@@ -1375,6 +1379,8 @@
     <!-- Broker (Zcom) - Manual Entry -->
     <CollapsibleSection
         title="Broker (Zcom)"
+        logoUrl={BROKER_METADATA.Zcom.logo}
+        logoStyle="transform: scale(1.5); transform-origin: center;"
         icon="🏦"
         badge={zcomPrices.length || null}
     >
@@ -1460,6 +1466,8 @@
     <!-- Broker (Xspring) - Manual Entry -->
     <CollapsibleSection
         title="Broker (Xspring)"
+        logoUrl={BROKER_METADATA.Xspring.logo}
+        logoStyle="transform: scale(1.4); transform-origin: center;"
         icon="🏦"
         badge={xspringPrices.length || null}
     >
@@ -1547,6 +1555,7 @@
     <!-- Broker Section -->
     <CollapsibleSection
         title="Broker (Maxbit)"
+        logoUrl={BROKER_METADATA.Maxbit.logo}
         icon="🏦"
         badge={maxbitPrices.length || null}
     >
@@ -1712,6 +1721,11 @@
                 <!-- Bitkub Order Book -->
                 <div class="order-book">
                     <div class="order-book-header bitkub">
+                        <img
+                            src={BROKER_METADATA.Bitkub.logo}
+                            alt=""
+                            class="header-logo"
+                        />
                         Bitkub
                         {#if isEditing}
                             <span class="hist-label">(Saved Snapshot)</span>
@@ -1760,6 +1774,11 @@
                 <!-- BinanceTH Order Book -->
                 <div class="order-book">
                     <div class="order-book-header binance">
+                        <img
+                            src={BROKER_METADATA.BinanceTH.logo}
+                            alt=""
+                            class="header-logo"
+                        />
                         BinanceTH
                         {#if isEditing}
                             <span class="hist-label">(Saved Snapshot)</span>
@@ -2705,6 +2724,17 @@
         text-align: center;
         text-transform: uppercase;
         letter-spacing: 0.05em;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+    }
+
+    .order-book-header .header-logo {
+        width: 16px;
+        height: 16px;
+        object-fit: contain;
+        border-radius: 3px;
     }
 
     .order-book-header.bitkub {

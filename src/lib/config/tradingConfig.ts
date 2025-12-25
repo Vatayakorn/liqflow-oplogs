@@ -41,6 +41,38 @@ export const BROKERS = [
     { value: 'BTZ', label: 'BTZ (Maxbit)' },
 ] as const;
 
+// Broker Metadata (for Logos and Display)
+export const BROKER_METADATA: Record<string, { logo: string; label: string }> = {
+    Bitazza: {
+        logo: '/images/brokers/bitazza.png',
+        label: 'Bitazza',
+    },
+    Maxbit: {
+        logo: '/images/brokers/maxbit.webp',
+        label: 'Maxbit',
+    },
+    Xspring: {
+        logo: '/images/brokers/xspring.jpeg',
+        label: 'Xspring',
+    },
+    Zcom: {
+        logo: '/images/brokers/zcom.png',
+        label: 'Zcom',
+    },
+    BinanceTH: {
+        logo: '/images/brokers/binanceth.webp',
+        label: 'Binance TH',
+    },
+    Bitkub: {
+        logo: '/images/brokers/bitkub.png',
+        label: 'Bitkub',
+    },
+    Google: {
+        logo: '/images/brokers/google.png',
+        label: 'Google',
+    },
+};
+
 // Transaction Actions
 export const OTC_ACTIONS = [
     { value: 'BUY', label: 'Buy', color: '#34C759' },

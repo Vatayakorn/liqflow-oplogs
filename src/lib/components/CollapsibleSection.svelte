@@ -5,6 +5,8 @@
      */
     export let title: string;
     export let icon: string = "";
+    export let logoUrl: string = "";
+    export let logoStyle: string = "";
     export let expanded = true;
     export let badge: string | number | null = null;
 
@@ -16,6 +18,14 @@
 <div class="collapsible-section" class:expanded>
     <button type="button" class="section-header" on:click={toggle}>
         <div class="section-title">
+            {#if logoUrl}
+                <img
+                    src={logoUrl}
+                    alt=""
+                    class="section-logo"
+                    style={logoStyle}
+                />
+            {/if}
             {#if icon}
                 <span class="icon">{icon}</span>
             {/if}
@@ -74,6 +84,13 @@
 
     .icon {
         font-size: 1.125rem;
+    }
+
+    .section-logo {
+        width: 20px;
+        height: 20px;
+        object-fit: contain;
+        border-radius: 4px;
     }
 
     .title {
