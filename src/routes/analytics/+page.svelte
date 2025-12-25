@@ -129,7 +129,7 @@
                             },
                             {
                                 label: "Maxbit",
-                                color: "#3c4be8",
+                                color: "#0ea5e9",
                                 data: marketData
                                     .filter((d) => d.source === "maxbit")
                                     .map((d) => ({

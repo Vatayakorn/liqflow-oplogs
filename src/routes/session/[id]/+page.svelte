@@ -43,7 +43,7 @@
     const sourceColors: Record<string, string> = {
         bitkub: "#27AE60", // Green
         binance_th: "#F3BA2F", // Yellow/Gold
-        maxbit: "#E53935", // Red
+        maxbit: "#0ea5e9", // Sky Blue (ฟ้าคราม)
         fx: "#2962FF", // Blue
     };
 
