@@ -36,6 +36,7 @@ const FIELD_LABELS: Record<string, string> = {
     exchange_notes: 'Exchange Notes',
     prefund_current: 'Prefund Current',
     prefund_target: 'Prefund Target',
+    prefund_notes: 'Prefund Status Notes',
     matching_notes: 'Matching Notes',
     otc_notes: 'OTC Notes',
     note: 'Notes',

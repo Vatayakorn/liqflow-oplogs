@@ -40,6 +40,7 @@
                 otc_transactions: formData.otc_transactions,
                 prefund_current: formData.prefund_current,
                 prefund_target: formData.prefund_target,
+                prefund_notes: formData.prefund_notes,
                 matching_notes: formData.matching_notes,
                 otc_notes: formData.otc_notes,
                 note: formData.note,

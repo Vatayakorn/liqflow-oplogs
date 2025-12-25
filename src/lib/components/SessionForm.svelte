@@ -26,6 +26,13 @@
         SHIFTS,
         type OtcTransaction,
     } from "$lib/config/tradingConfig";
+    import type {
+        BrokerPriceEntry,
+        FxPriceEntry,
+        MaxbitPriceEntry,
+        ExchangePriceEntry,
+    } from "$lib/api/oplog";
+    import { getLatestPrefundValues } from "$lib/api/oplog";
     import {
         fetchMaxbitPrice,
         fetchBitkubOrderBook,
@@ -92,6 +99,7 @@
         otcTransactions = data.otc_transactions || [];
         prefundCurrent = data.prefund_current || 0;
         prefundTarget = data.prefund_target || PREFUND_DEFAULTS.target; // Fallback to default
+        prefundNotes = data.prefund_notes || "";
         matchingNotes = data.matching_notes || "";
         otcNotes = data.otc_notes || "";
         generalNotes = data.note || "";
@@ -117,6 +125,35 @@
 
         // We don't populate images and audioFiles as they are New files to upload
         // In edit mode, parent should handle existing ones
+
+        // Load broker prices
+        if (data.broker_prices && Array.isArray(data.broker_prices)) {
+            brokerPrices = data.broker_prices;
+        }
+        // Load FX prices
+        if (data.fx_prices && Array.isArray(data.fx_prices)) {
+            fxPrices = data.fx_prices;
+        }
+        // Load Maxbit prices
+        if (data.maxbit_prices && Array.isArray(data.maxbit_prices)) {
+            maxbitPrices = data.maxbit_prices;
+        }
+        // Load Bitazza prices
+        if (data.bitazza_prices && Array.isArray(data.bitazza_prices)) {
+            bitazzaPrices = data.bitazza_prices;
+        }
+        // Load Zcom prices
+        if (data.zcom_prices && Array.isArray(data.zcom_prices)) {
+            zcomPrices = data.zcom_prices;
+        }
+        // Load Xspring prices
+        if (data.xspring_prices && Array.isArray(data.xspring_prices)) {
+            xspringPrices = data.xspring_prices;
+        }
+        // Load Exchange prices
+        if (data.exchange_prices && Array.isArray(data.exchange_prices)) {
+            exchangePrices = data.exchange_prices;
+        }
     }
 
     // === Time Slot ===
@@ -137,18 +174,45 @@
     let broker = "";
     let trader = "";
     let head = "";
-    let recorder = ""; // ผู้จดบันทึก
+    let recorder = ""; // Recorder
 
     // === FX ===
     let fxRate = "";
     let fxNotes = "";
     let isFetchingFx = false;
+    // FX Price History
+    let fxPrices: FxPriceEntry[] = [];
+    let fxSaveNote = "";
 
     // === Broker (Maxbit) ===
     let btzBid = "";
     let btzAsk = "";
     let btzNotes = "";
     let isFetchingBroker = false;
+    // Maxbit Price History
+    let maxbitPrices: MaxbitPriceEntry[] = [];
+    let maxbitSaveNote = "";
+
+    // === Broker (Bitazza) - Manual ===
+    let bitazzaBid = "";
+    let bitazzaAsk = "";
+    let bitazzaNotes = "";
+    let bitazzaPrices: MaxbitPriceEntry[] = [];
+    let bitazzaSaveNote = "";
+
+    // === Broker (Zcom) - Manual ===
+    let zcomBid = "";
+    let zcomAsk = "";
+    let zcomNotes = "";
+    let zcomPrices: MaxbitPriceEntry[] = [];
+    let zcomSaveNote = "";
+
+    // === Broker (Xspring) - Manual ===
+    let xspringBid = "";
+    let xspringAsk = "";
+    let xspringNotes = "";
+    let xspringPrices: MaxbitPriceEntry[] = [];
+    let xspringSaveNote = "";
 
     // === Exchange ===
     let exchange1 = "Bitkub";
@@ -161,6 +225,8 @@
     let exchangeHigher = "";
     let exchangeNotes = "";
     let isFetchingExchange = false;
+    // Exchange Price History
+    let exchangePrices: ExchangePriceEntry[] = [];
 
     // Full order book data (5 levels)
     let bitkubBook: OrderBook | null = null;
@@ -171,6 +237,184 @@
     let fetchedOtcTransactions: OtcTransaction[] = []; // Transactions from API
     let filterType = "ALL"; // 'ALL', 'otc', 'commission'
     let searchQuery = "";
+
+    // === Broker Prices (Manual Entry) ===
+    const BROKER_OPTIONS = ["Xspring", "Zcom", "Bitazza"] as const;
+    let brokerPrices: BrokerPriceEntry[] = [];
+    let showBrokerPriceForm = false;
+    let newBrokerEntry = {
+        broker: "Xspring" as "Xspring" | "Zcom" | "Bitazza",
+        bid: "",
+        ask: "",
+        note: "",
+    };
+
+    function addBrokerPrice() {
+        if (!newBrokerEntry.bid || !newBrokerEntry.ask) {
+            toast.error("Please enter BID and ASK");
+            return;
+        }
+        const entry: BrokerPriceEntry = {
+            id: crypto.randomUUID(),
+            broker: newBrokerEntry.broker,
+            bid: newBrokerEntry.bid,
+            ask: newBrokerEntry.ask,
+            note: newBrokerEntry.note || undefined,
+            timestamp: new Date().toISOString(),
+        };
+        brokerPrices = [...brokerPrices, entry];
+        // Reset form
+        newBrokerEntry = { broker: "Xspring", bid: "", ask: "", note: "" };
+        showBrokerPriceForm = false;
+        toast.success("Broker Price Saved");
+    }
+
+    function removeBrokerPrice(id: string) {
+        brokerPrices = brokerPrices.filter((p) => p.id !== id);
+    }
+
+    // Save current FX rate with note
+    function saveFxPrice() {
+        if (!fxRate) {
+            toast.error("No FX rate to save - Please Fetch first");
+            return;
+        }
+        const entry: FxPriceEntry = {
+            id: crypto.randomUUID(),
+            rate: fxRate,
+            note: fxNotes || undefined,
+            timestamp: new Date().toISOString(),
+        };
+        fxPrices = [...fxPrices, entry];
+        toast.success("FX Rate Saved");
+    }
+
+    function removeFxPrice(id: string) {
+        fxPrices = fxPrices.filter((p) => p.id !== id);
+    }
+
+    // Save current Maxbit BID/ASK with note
+    function saveMaxbitPrice() {
+        if (!btzBid || !btzAsk) {
+            toast.error("No Maxbit price to save - Please Fetch first");
+            return;
+        }
+        const entry: MaxbitPriceEntry = {
+            id: crypto.randomUUID(),
+            bid: btzBid,
+            ask: btzAsk,
+            note: btzNotes || undefined,
+            timestamp: new Date().toISOString(),
+        };
+        maxbitPrices = [...maxbitPrices, entry];
+        toast.success("Maxbit Price Saved");
+    }
+
+    function removeMaxbitPrice(id: string) {
+        maxbitPrices = maxbitPrices.filter((p) => p.id !== id);
+    }
+
+    // Save Bitazza price
+    function saveBitazzaPrice() {
+        if (!bitazzaBid || !bitazzaAsk) {
+            toast.error("Please enter BID and ASK");
+            return;
+        }
+        const entry: MaxbitPriceEntry = {
+            id: crypto.randomUUID(),
+            bid: bitazzaBid,
+            ask: bitazzaAsk,
+            note: bitazzaNotes || undefined,
+            timestamp: new Date().toISOString(),
+        };
+        bitazzaPrices = [...bitazzaPrices, entry];
+        toast.success("Bitazza Price Saved");
+    }
+
+    function removeBitazzaPrice(id: string) {
+        bitazzaPrices = bitazzaPrices.filter((p) => p.id !== id);
+    }
+
+    // Save Zcom price
+    function saveZcomPrice() {
+        if (!zcomBid || !zcomAsk) {
+            toast.error("Please enter BID and ASK");
+            return;
+        }
+        const entry: MaxbitPriceEntry = {
+            id: crypto.randomUUID(),
+            bid: zcomBid,
+            ask: zcomAsk,
+            note: zcomNotes || undefined,
+            timestamp: new Date().toISOString(),
+        };
+        zcomPrices = [...zcomPrices, entry];
+        toast.success("Zcom Price Saved");
+    }
+
+    function removeZcomPrice(id: string) {
+        zcomPrices = zcomPrices.filter((p) => p.id !== id);
+    }
+
+    // Save Xspring price
+    function saveXspringPrice() {
+        if (!xspringBid || !xspringAsk) {
+            toast.error("Please enter BID and ASK");
+            return;
+        }
+        const entry: MaxbitPriceEntry = {
+            id: crypto.randomUUID(),
+            bid: xspringBid,
+            ask: xspringAsk,
+            note: xspringNotes || undefined,
+            timestamp: new Date().toISOString(),
+        };
+        xspringPrices = [...xspringPrices, entry];
+        toast.success("Xspring Price Saved");
+    }
+
+    function removeXspringPrice(id: string) {
+        xspringPrices = xspringPrices.filter((p) => p.id !== id);
+    }
+
+    // Save current Exchange Order Book data
+    function saveExchangePrice() {
+        if (!exchange1Bid && !exchange1Ask && !exchange2Bid && !exchange2Ask) {
+            toast.error("No Exchange data to save - Please Fetch first");
+            return;
+        }
+        const entry: ExchangePriceEntry = {
+            id: crypto.randomUUID(),
+            exchange1: exchange1,
+            exchange1Bid: exchange1Bid,
+            exchange1Ask: exchange1Ask,
+            exchange2: exchange2,
+            exchange2Bid: exchange2Bid,
+            exchange2Ask: exchange2Ask,
+            diff: exchangeDiff,
+            higher: exchangeHigher,
+            note: exchangeNotes || undefined,
+            timestamp: new Date().toISOString(),
+        };
+        exchangePrices = [...exchangePrices, entry];
+        toast.success("Exchange data Saved");
+    }
+
+    function removeExchangePrice(id: string) {
+        exchangePrices = exchangePrices.filter((p) => p.id !== id);
+    }
+
+    function formatBrokerTimestamp(isoStr: string): string {
+        const date = new Date(isoStr);
+        return date.toLocaleString("th-TH", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+        });
+    }
 
     // Scope Filter: Filter by Time Slot
     $: timeFilteredOtcTransactions = fetchedOtcTransactions.filter((tx) => {
@@ -209,6 +453,7 @@
 
     let prefundCurrent = 0;
     let prefundTarget = PREFUND_DEFAULTS.target;
+    let prefundNotes = "";
     let matchingNotes = "";
     let otcNotes = "";
     let isFetchingOtc = false;
@@ -234,6 +479,14 @@
         // Only connect to live feed when NOT editing
         if (!initialData) {
             marketFeed.connect();
+
+            // Fetch last saved prefund values for new sessions
+            getLatestPrefundValues().then((lastPrefund) => {
+                if (lastPrefund) {
+                    prefundCurrent = lastPrefund.prefund_current;
+                    prefundTarget = lastPrefund.prefund_target;
+                }
+            });
         }
     });
 
@@ -592,13 +845,13 @@
             console.log("Fetched transactions:", transactions);
             if (transactions.length === 0) {
                 alert(
-                    "ไม่พบข้อมูลวันนี้ (0 รายการ) - กรุณาตรวจสอบ API Configuration ใน Console (F12)",
+                    "No data today (0 items) - Please check API Configuration in Console (F12)",
                 );
             }
         } catch (error) {
             console.error("Failed to fetch OTC transactions:", error);
             alert(
-                `เกิดข้อผิดพลาด: ${error instanceof Error ? error.message : error}`,
+                `An error occurred: ${error instanceof Error ? error.message : error}`,
             );
         } finally {
             isFetchingOtc = false;
@@ -696,6 +949,7 @@
                 ],
                 prefund_current: prefundCurrent,
                 prefund_target: prefundTarget,
+                prefund_notes: prefundNotes,
                 matching_notes: matchingNotes,
                 otc_notes: otcNotes,
                 // General
@@ -707,6 +961,20 @@
                 // Context
                 shift, // Pass shift explicitly
                 market_context: marketContext,
+                // Broker Prices (Manual - legacy)
+                broker_prices: brokerPrices,
+                // FX Price History
+                fx_prices: fxPrices,
+                // Maxbit Price History
+                maxbit_prices: maxbitPrices,
+                // Bitazza Price History
+                bitazza_prices: bitazzaPrices,
+                // Zcom Price History
+                zcom_prices: zcomPrices,
+                // Xspring Price History
+                xspring_prices: xspringPrices,
+                // Exchange Price History
+                exchange_prices: exchangePrices,
             });
         } catch (error) {
             console.error("Error submitting form:", error);
@@ -749,6 +1017,28 @@
         fxFetchTime = "";
         brokerFetchTime = "";
         exchangeFetchTime = "";
+        brokerPrices = [];
+        fxPrices = [];
+        maxbitPrices = [];
+        fxSaveNote = "";
+        maxbitSaveNote = "";
+        // Bitazza, Zcom, Xspring
+        bitazzaBid = "";
+        bitazzaAsk = "";
+        bitazzaNotes = "";
+        bitazzaPrices = [];
+        bitazzaSaveNote = "";
+        zcomBid = "";
+        zcomAsk = "";
+        zcomNotes = "";
+        zcomPrices = [];
+        zcomSaveNote = "";
+        xspringBid = "";
+        xspringAsk = "";
+        xspringNotes = "";
+        xspringPrices = [];
+        xspringSaveNote = "";
+        exchangePrices = [];
     }
 </script>
 
@@ -847,7 +1137,7 @@
                 </select>
             </div>
             <div class="field">
-                <label for="recorder">ผู้จดบันทึก</label>
+                <label for="recorder">Recorder</label>
                 <select
                     id="recorder"
                     bind:value={recorder}
@@ -907,7 +1197,11 @@
     </div>
 
     <!-- FX Section -->
-    <CollapsibleSection title="FX (Spot Rate)" icon="📊">
+    <CollapsibleSection
+        title="FX (Spot Rate)"
+        icon="📊"
+        badge={fxPrices.length || null}
+    >
         <div class="section-action">
             {#if fxFetchTime}
                 <span class="fetch-time">Drawn at: {fxFetchTime}</span>
@@ -926,53 +1220,336 @@
                     {/if}
                 </button>
             {/if}
-            {#if fxRate}
+        </div>
+        <div class="field">
+            <label>USD/THB Spot Rate</label>
+            <input
+                type="text"
+                bind:value={fxRate}
+                placeholder="31.510"
+                disabled={disabled || isSubmitting}
+            />
+        </div>
+        <div class="field">
+            <label>Notes</label>
+            <textarea
+                bind:value={fxNotes}
+                placeholder="FX trend, observations..."
+                rows="2"
+                disabled={disabled || isSubmitting}
+            ></textarea>
+        </div>
+
+        <!-- Save FX Price Section -->
+        {#if fxRate}
+            <div class="save-price-section">
                 <button
                     type="button"
-                    class="snap-btn"
-                    on:click={snapshotFxUI}
-                    disabled={disabled || isCapturingFx}
+                    class="save-price-btn"
+                    on:click={saveFxPrice}
+                    disabled={disabled || isSubmitting}
                 >
-                    {#if isCapturingFx}
-                        ⏳ Snapping...
-                    {:else}
-                        📸 Snap UI
-                    {/if}
+                    💾 Save Price
                 </button>
-            {/if}
-        </div>
-        <div class="fx-snapshot-container" bind:this={fxContainer}>
-            {#if isCapturingFx}
-                <div class="snapshot-header">
-                    <span class="app-name">Liqflow FX Snapshot</span>
-                    <span class="app-time"
-                        >{new Date().toLocaleString("th-TH")}</span
-                    >
+            </div>
+        {/if}
+
+        <!-- FX Price History -->
+        {#if fxPrices.length > 0}
+            <div class="price-history-list">
+                <div class="history-header">
+                    📋 Price History ({fxPrices.length})
                 </div>
-            {/if}
+                {#each fxPrices as entry (entry.id)}
+                    <div class="price-history-card">
+                        <div class="history-card-header">
+                            <span class="history-value">{entry.rate}</span>
+                            <button
+                                type="button"
+                                class="delete-btn"
+                                on:click={() => removeFxPrice(entry.id)}
+                                disabled={disabled || isSubmitting}
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        <div class="history-timestamp">
+                            📅 {formatBrokerTimestamp(entry.timestamp)}
+                        </div>
+                        {#if entry.note}
+                            <div class="history-note">📝 {entry.note}</div>
+                        {/if}
+                    </div>
+                {/each}
+            </div>
+        {/if}
+    </CollapsibleSection>
+
+    <!-- Broker (Bitazza) - Manual Entry -->
+    <CollapsibleSection
+        title="Broker (Bitazza)"
+        icon="🏦"
+        badge={bitazzaPrices.length || null}
+    >
+        <div class="bid-ask-row">
             <div class="field">
-                <label>USD/THB Spot Rate</label>
+                <label>BID</label>
                 <input
-                    type="text"
-                    bind:value={fxRate}
-                    placeholder="31.510"
+                    type="number"
+                    step="0.001"
+                    bind:value={bitazzaBid}
+                    placeholder="33.95"
                     disabled={disabled || isSubmitting}
                 />
             </div>
             <div class="field">
-                <label>Notes</label>
-                <textarea
-                    bind:value={fxNotes}
-                    placeholder="FX trend, observations..."
-                    rows="2"
+                <label>ASK</label>
+                <input
+                    type="number"
+                    step="0.001"
+                    bind:value={bitazzaAsk}
+                    placeholder="34.05"
                     disabled={disabled || isSubmitting}
-                ></textarea>
+                />
             </div>
         </div>
+
+        <div class="field">
+            <label>Notes</label>
+            <textarea
+                bind:value={bitazzaNotes}
+                placeholder="Bitazza conditions..."
+                rows="2"
+                disabled={disabled || isSubmitting}
+            ></textarea>
+        </div>
+
+        <!-- Save Bitazza Price Section -->
+        <div class="save-price-section">
+            <button
+                type="button"
+                class="save-price-btn"
+                on:click={saveBitazzaPrice}
+                disabled={disabled ||
+                    isSubmitting ||
+                    (!bitazzaBid && !bitazzaAsk)}
+            >
+                💾 Save Price
+            </button>
+        </div>
+
+        <!-- Bitazza Price History -->
+        {#if bitazzaPrices.length > 0}
+            <div class="price-history-list">
+                <div class="history-header">
+                    📋 Price History ({bitazzaPrices.length})
+                </div>
+                {#each bitazzaPrices as entry (entry.id)}
+                    <div class="price-history-card">
+                        <div class="history-card-header">
+                            <span class="history-values">
+                                <span class="bid-value">BID: {entry.bid}</span>
+                                <span class="ask-value">ASK: {entry.ask}</span>
+                            </span>
+                            <button
+                                type="button"
+                                class="delete-btn"
+                                on:click={() => removeBitazzaPrice(entry.id)}
+                                disabled={disabled || isSubmitting}
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        <div class="history-timestamp">
+                            📅 {formatBrokerTimestamp(entry.timestamp)}
+                        </div>
+                        {#if entry.note}
+                            <div class="history-note">📝 {entry.note}</div>
+                        {/if}
+                    </div>
+                {/each}
+            </div>
+        {/if}
+    </CollapsibleSection>
+
+    <!-- Broker (Zcom) - Manual Entry -->
+    <CollapsibleSection
+        title="Broker (Zcom)"
+        icon="🏦"
+        badge={zcomPrices.length || null}
+    >
+        <div class="bid-ask-row">
+            <div class="field">
+                <label>BID</label>
+                <input
+                    type="number"
+                    step="0.001"
+                    bind:value={zcomBid}
+                    placeholder="33.95"
+                    disabled={disabled || isSubmitting}
+                />
+            </div>
+            <div class="field">
+                <label>ASK</label>
+                <input
+                    type="number"
+                    step="0.001"
+                    bind:value={zcomAsk}
+                    placeholder="34.05"
+                    disabled={disabled || isSubmitting}
+                />
+            </div>
+        </div>
+
+        <div class="field">
+            <label>Notes</label>
+            <textarea
+                bind:value={zcomNotes}
+                placeholder="Zcom conditions..."
+                rows="2"
+                disabled={disabled || isSubmitting}
+            ></textarea>
+        </div>
+
+        <!-- Save Zcom Price Section -->
+        <div class="save-price-section">
+            <button
+                type="button"
+                class="save-price-btn"
+                on:click={saveZcomPrice}
+                disabled={disabled || isSubmitting || (!zcomBid && !zcomAsk)}
+            >
+                💾 Save Price
+            </button>
+        </div>
+
+        <!-- Zcom Price History -->
+        {#if zcomPrices.length > 0}
+            <div class="price-history-list">
+                <div class="history-header">
+                    📋 Price History ({zcomPrices.length})
+                </div>
+                {#each zcomPrices as entry (entry.id)}
+                    <div class="price-history-card">
+                        <div class="history-card-header">
+                            <span class="history-values">
+                                <span class="bid-value">BID: {entry.bid}</span>
+                                <span class="ask-value">ASK: {entry.ask}</span>
+                            </span>
+                            <button
+                                type="button"
+                                class="delete-btn"
+                                on:click={() => removeZcomPrice(entry.id)}
+                                disabled={disabled || isSubmitting}
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        <div class="history-timestamp">
+                            📅 {formatBrokerTimestamp(entry.timestamp)}
+                        </div>
+                        {#if entry.note}
+                            <div class="history-note">📝 {entry.note}</div>
+                        {/if}
+                    </div>
+                {/each}
+            </div>
+        {/if}
+    </CollapsibleSection>
+
+    <!-- Broker (Xspring) - Manual Entry -->
+    <CollapsibleSection
+        title="Broker (Xspring)"
+        icon="🏦"
+        badge={xspringPrices.length || null}
+    >
+        <div class="bid-ask-row">
+            <div class="field">
+                <label>BID</label>
+                <input
+                    type="number"
+                    step="0.001"
+                    bind:value={xspringBid}
+                    placeholder="33.95"
+                    disabled={disabled || isSubmitting}
+                />
+            </div>
+            <div class="field">
+                <label>ASK</label>
+                <input
+                    type="number"
+                    step="0.001"
+                    bind:value={xspringAsk}
+                    placeholder="34.05"
+                    disabled={disabled || isSubmitting}
+                />
+            </div>
+        </div>
+
+        <div class="field">
+            <label>Notes</label>
+            <textarea
+                bind:value={xspringNotes}
+                placeholder="Xspring conditions..."
+                rows="2"
+                disabled={disabled || isSubmitting}
+            ></textarea>
+        </div>
+
+        <!-- Save Xspring Price Section -->
+        <div class="save-price-section">
+            <button
+                type="button"
+                class="save-price-btn"
+                on:click={saveXspringPrice}
+                disabled={disabled ||
+                    isSubmitting ||
+                    (!xspringBid && !xspringAsk)}
+            >
+                💾 Save Price
+            </button>
+        </div>
+
+        <!-- Xspring Price History -->
+        {#if xspringPrices.length > 0}
+            <div class="price-history-list">
+                <div class="history-header">
+                    📋 Price History ({xspringPrices.length})
+                </div>
+                {#each xspringPrices as entry (entry.id)}
+                    <div class="price-history-card">
+                        <div class="history-card-header">
+                            <span class="history-values">
+                                <span class="bid-value">BID: {entry.bid}</span>
+                                <span class="ask-value">ASK: {entry.ask}</span>
+                            </span>
+                            <button
+                                type="button"
+                                class="delete-btn"
+                                on:click={() => removeXspringPrice(entry.id)}
+                                disabled={disabled || isSubmitting}
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        <div class="history-timestamp">
+                            📅 {formatBrokerTimestamp(entry.timestamp)}
+                        </div>
+                        {#if entry.note}
+                            <div class="history-note">📝 {entry.note}</div>
+                        {/if}
+                    </div>
+                {/each}
+            </div>
+        {/if}
     </CollapsibleSection>
 
     <!-- Broker Section -->
-    <CollapsibleSection title="Broker (Maxbit)" icon="🏦">
+    <CollapsibleSection
+        title="Broker (Maxbit)"
+        icon="🏦"
+        badge={maxbitPrices.length || null}
+    >
         <div class="section-action">
             {#if brokerFetchTime}
                 <span class="fetch-time">Drawn at: {brokerFetchTime}</span>
@@ -991,67 +1568,94 @@
                     {/if}
                 </button>
             {/if}
-            {#if btzBid || btzAsk}
+        </div>
+        <div class="bid-ask-row">
+            <div class="field">
+                <label>BID</label>
+                <input
+                    type="number"
+                    step="0.001"
+                    bind:value={btzBid}
+                    placeholder="31.471"
+                    disabled={disabled || isSubmitting}
+                />
+            </div>
+            <div class="field">
+                <label>ASK</label>
+                <input
+                    type="number"
+                    step="0.001"
+                    bind:value={btzAsk}
+                    placeholder="31.523"
+                    disabled={disabled || isSubmitting}
+                />
+            </div>
+        </div>
+
+        <div class="field">
+            <label>Notes</label>
+            <textarea
+                bind:value={btzNotes}
+                placeholder="Broker conditions..."
+                rows="2"
+                disabled={disabled || isSubmitting}
+            ></textarea>
+        </div>
+
+        <!-- Save Maxbit Price Section -->
+        {#if btzBid || btzAsk}
+            <div class="save-price-section">
                 <button
                     type="button"
-                    class="snap-btn"
-                    on:click={snapshotBrokerUI}
-                    disabled={disabled || isCapturingBroker}
-                >
-                    {#if isCapturingBroker}
-                        ⏳ Snapping...
-                    {:else}
-                        📸 Snap UI
-                    {/if}
-                </button>
-            {/if}
-        </div>
-        <div class="broker-snapshot-container" bind:this={brokerContainer}>
-            {#if isCapturingBroker}
-                <div class="snapshot-header">
-                    <span class="app-name">Liqflow Broker Snapshot</span>
-                    <span class="app-time"
-                        >{new Date().toLocaleString("th-TH")}</span
-                    >
-                </div>
-            {/if}
-            <div class="bid-ask-row">
-                <div class="field">
-                    <label>BID</label>
-                    <input
-                        type="number"
-                        step="0.001"
-                        bind:value={btzBid}
-                        placeholder="31.471"
-                        disabled={disabled || isSubmitting}
-                    />
-                </div>
-                <div class="field">
-                    <label>ASK</label>
-                    <input
-                        type="number"
-                        step="0.001"
-                        bind:value={btzAsk}
-                        placeholder="31.523"
-                        disabled={disabled || isSubmitting}
-                    />
-                </div>
-            </div>
-
-            <div class="field">
-                <label>Notes</label>
-                <textarea
-                    bind:value={btzNotes}
-                    placeholder="Broker conditions..."
-                    rows="2"
+                    class="save-price-btn"
+                    on:click={saveMaxbitPrice}
                     disabled={disabled || isSubmitting}
-                ></textarea>
+                >
+                    💾 Save Price
+                </button>
             </div>
-        </div>
+        {/if}
+
+        <!-- Maxbit Price History -->
+        {#if maxbitPrices.length > 0}
+            <div class="price-history-list">
+                <div class="history-header">
+                    📋 Price History ({maxbitPrices.length})
+                </div>
+                {#each maxbitPrices as entry (entry.id)}
+                    <div class="price-history-card">
+                        <div class="history-card-header">
+                            <span class="history-values">
+                                <span class="bid-value">BID: {entry.bid}</span>
+                                <span class="ask-value">ASK: {entry.ask}</span>
+                            </span>
+                            <button
+                                type="button"
+                                class="delete-btn"
+                                on:click={() => removeMaxbitPrice(entry.id)}
+                                disabled={disabled || isSubmitting}
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        <div class="history-timestamp">
+                            📅 {formatBrokerTimestamp(entry.timestamp)}
+                        </div>
+                        {#if entry.note}
+                            <div class="history-note">📝 {entry.note}</div>
+                        {/if}
+                    </div>
+                {/each}
+            </div>
+        {/if}
     </CollapsibleSection>
 
     <!-- Exchange Section -->
-    <CollapsibleSection title="Exchange (Order Book)" icon="📈">
+    <CollapsibleSection
+        title="Exchange (Order Book)"
+        icon="📈"
+        badge={exchangePrices.length || null}
+    >
         <div class="section-action">
             <div class="action-group">
                 {#if exchangeFetchTime}
@@ -1204,10 +1808,9 @@
         {:else if isEditing}
             <div class="no-snapshot-msg">
                 <span class="warn-icon">📋</span>
-                <p>ไม่มี Order Book Snapshot สำหรับ session นี้</p>
+                <p>No Order Book Snapshot for this session</p>
                 <small
-                    >Session ที่สร้างก่อนหน้าอาจไม่ได้บันทึก order book depth
-                    ไว้</small
+                    >Previous sessions might not have saved order book depth</small
                 >
             </div>
         {/if}
@@ -1241,6 +1844,84 @@
                 disabled={disabled || isSubmitting}
             ></textarea>
         </div>
+
+        <!-- Save Exchange Price Section -->
+        <div class="save-price-section">
+            <button
+                type="button"
+                class="save-price-btn"
+                on:click={saveExchangePrice}
+                disabled={disabled ||
+                    isSubmitting ||
+                    (!exchange1Bid &&
+                        !exchange1Ask &&
+                        !exchange2Bid &&
+                        !exchange2Ask)}
+            >
+                💾 Save Price
+            </button>
+        </div>
+
+        <!-- Exchange Price History -->
+        {#if exchangePrices.length > 0}
+            <div class="price-history-list">
+                <div class="history-header">
+                    📋 Price History ({exchangePrices.length})
+                </div>
+                {#each exchangePrices as entry (entry.id)}
+                    <div class="price-history-card exchange-price-card">
+                        <div class="history-card-header">
+                            <span class="exchange-info"
+                                >{entry.exchange1} vs {entry.exchange2}</span
+                            >
+                            <button
+                                type="button"
+                                class="delete-btn"
+                                on:click={() => removeExchangePrice(entry.id)}
+                                disabled={disabled || isSubmitting}
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        <div class="exchange-price-details">
+                            <div class="exchange-row">
+                                <span class="exchange-name"
+                                    >{entry.exchange1}:</span
+                                >
+                                <span class="bid-value"
+                                    >BID {entry.exchange1Bid}</span
+                                >
+                                <span class="ask-value"
+                                    >ASK {entry.exchange1Ask}</span
+                                >
+                            </div>
+                            <div class="exchange-row">
+                                <span class="exchange-name"
+                                    >{entry.exchange2}:</span
+                                >
+                                <span class="bid-value"
+                                    >BID {entry.exchange2Bid}</span
+                                >
+                                <span class="ask-value"
+                                    >ASK {entry.exchange2Ask}</span
+                                >
+                            </div>
+                            {#if entry.diff}
+                                <div class="exchange-diff">
+                                    Diff: {entry.diff} | Higher: {entry.higher}
+                                </div>
+                            {/if}
+                        </div>
+                        <div class="history-timestamp">
+                            📅 {formatBrokerTimestamp(entry.timestamp)}
+                        </div>
+                        {#if entry.note}
+                            <div class="history-note">📝 {entry.note}</div>
+                        {/if}
+                    </div>
+                {/each}
+            </div>
+        {/if}
     </CollapsibleSection>
 
     <!-- OTC Section -->
@@ -1259,7 +1940,7 @@
                 {#if isFetchingOtc}
                     ⏳ Loading...
                 {:else}
-                    🔄 ดึงข้อมูลวันนี้
+                    🔄 Fetch Today's Data
                 {/if}
             </button>
         </div>
@@ -1269,7 +1950,7 @@
             <div class="fetched-orders">
                 <div class="fetched-orders-header">
                     <span
-                        >📋 วันนี้ ({timeFilteredOtcTransactions.length} รายการ)</span
+                        >📋 Today ({timeFilteredOtcTransactions.length} items)</span
                     >
                 </div>
 
@@ -1363,6 +2044,16 @@
             </div>
         {/if}
 
+        <div class="field">
+            <label>OTC Notes</label>
+            <textarea
+                bind:value={otcNotes}
+                placeholder="OTC observations..."
+                rows="2"
+                disabled={disabled || isSubmitting}
+            ></textarea>
+        </div>
+
         <div class="prefund-section">
             <div class="prefund-inputs">
                 <div class="field">
@@ -1388,10 +2079,10 @@
         </div>
 
         <div class="field">
-            <label>OTC Notes</label>
+            <label>Prefund Status Notes</label>
             <textarea
-                bind:value={otcNotes}
-                placeholder="OTC observations..."
+                bind:value={prefundNotes}
+                placeholder="Prefund status observations..."
                 rows="2"
                 disabled={disabled || isSubmitting}
             ></textarea>
@@ -2364,5 +3055,285 @@
         100% {
             opacity: 1;
         }
+    }
+
+    /* Broker Prices Styles */
+    .broker-price-form {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        padding: 1rem;
+        background: rgba(0, 122, 255, 0.03);
+        border: 1px solid rgba(0, 122, 255, 0.15);
+        border-radius: 12px;
+    }
+
+    .broker-price-inputs {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.75rem;
+    }
+
+    .broker-price-time {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 0.75rem;
+        background: rgba(52, 199, 89, 0.1);
+        border-radius: 8px;
+        font-size: 0.8125rem;
+    }
+
+    .broker-price-time .time-label {
+        font-size: 1rem;
+    }
+
+    .broker-price-time .time-value {
+        flex: 1;
+        color: var(--color-text);
+        font-weight: 500;
+    }
+
+    .broker-price-time .time-auto {
+        color: #34c759;
+        font-weight: 600;
+        font-size: 0.75rem;
+    }
+
+    .broker-form-actions {
+        display: flex;
+        gap: 0.5rem;
+        justify-content: flex-end;
+    }
+
+    .broker-form-actions .cancel-btn {
+        padding: 0.5rem 1rem;
+        background: #f0f0f5;
+        border: 1px solid #d1d1d6;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: #3a3a3c;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+
+    .broker-form-actions .cancel-btn:hover {
+        background: #e5e5ea;
+    }
+
+    .broker-form-actions .save-btn {
+        padding: 0.5rem 1rem;
+        background: linear-gradient(135deg, #007aff, #5856d6);
+        border: none;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: white;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+
+    .broker-form-actions .save-btn:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 122, 255, 0.25);
+    }
+
+    .broker-form-actions .save-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .broker-price-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        margin-top: 0.75rem;
+    }
+
+    .broker-price-card {
+        padding: 0.75rem;
+        background: var(--color-bg);
+        border: 1px solid var(--color-border-light);
+        border-radius: 10px;
+        transition: all 0.15s;
+    }
+
+    .broker-price-card:hover {
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    }
+
+    .broker-price-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.375rem;
+    }
+
+    .broker-price-header .broker-name {
+        font-weight: 700;
+        font-size: 0.9375rem;
+        color: var(--color-text);
+    }
+
+    .broker-price-header .delete-btn {
+        width: 1.5rem;
+        height: 1.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(255, 59, 48, 0.1);
+        border: none;
+        border-radius: 50%;
+        color: #ff3b30;
+        font-size: 0.75rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+
+    .broker-price-header .delete-btn:hover:not(:disabled) {
+        background: rgba(255, 59, 48, 0.2);
+    }
+
+    .broker-price-header .delete-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .broker-price-values {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .broker-price-values .bid-value,
+    .broker-price-values .ask-value {
+        font-size: 0.875rem;
+        font-weight: 500;
+        padding: 0.25rem 0.5rem;
+        border-radius: 6px;
+    }
+
+    .broker-price-values .bid-value {
+        color: #34c759;
+        background: rgba(52, 199, 89, 0.1);
+    }
+
+    .broker-price-values .ask-value {
+        color: #ff3b30;
+        background: rgba(255, 59, 48, 0.1);
+    }
+
+    .broker-price-timestamp {
+        font-size: 0.75rem;
+        color: var(--color-text-tertiary);
+    }
+
+    .broker-price-note {
+        font-size: 0.75rem;
+        color: var(--color-text-secondary);
+        margin-top: 0.25rem;
+        padding: 0.25rem 0.5rem;
+        background: rgba(0, 0, 0, 0.03);
+        border-radius: 4px;
+    }
+
+    /* Save Price Section */
+    .save-price-section {
+        margin-top: 0.75rem;
+        padding-top: 0.75rem;
+        border-top: 1px dashed var(--color-border-light);
+    }
+
+    .save-price-row {
+        display: flex;
+        gap: 0.5rem;
+        align-items: stretch;
+    }
+
+    .save-note-input {
+        flex: 1;
+        padding: 0.5rem 0.75rem;
+        border: 1px solid var(--color-border);
+        border-radius: 8px;
+        font-size: 0.875rem;
+    }
+
+    .save-price-btn {
+        padding: 0.5rem 1rem;
+        background: linear-gradient(135deg, #34c759, #30b050);
+        border: none;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: white;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: all 0.15s;
+    }
+
+    .save-price-btn:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(52, 199, 89, 0.25);
+    }
+
+    .save-price-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    /* Price History List */
+    .price-history-list {
+        margin-top: 0.75rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid var(--color-border-light);
+    }
+
+    .history-header {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--color-text-secondary);
+        margin-bottom: 0.5rem;
+    }
+
+    .price-history-card {
+        padding: 0.5rem 0.75rem;
+        background: var(--color-bg);
+        border: 1px solid var(--color-border-light);
+        border-radius: 8px;
+        margin-bottom: 0.375rem;
+    }
+
+    .history-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .history-value {
+        font-weight: 700;
+        font-size: 1rem;
+        color: var(--color-text);
+    }
+
+    .history-values {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .history-timestamp {
+        font-size: 0.6875rem;
+        color: var(--color-text-tertiary);
+        margin-top: 0.125rem;
+    }
+
+    .history-note {
+        font-size: 0.6875rem;
+        color: var(--color-text-secondary);
+        margin-top: 0.25rem;
+        padding: 0.125rem 0.375rem;
+        background: rgba(0, 0, 0, 0.03);
+        border-radius: 4px;
     }
 </style>

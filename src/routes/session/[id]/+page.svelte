@@ -552,6 +552,25 @@
                 content += "\n";
             }
 
+            // Broker Prices (Manual Entry)
+            if (session.broker_prices && session.broker_prices.length > 0) {
+                content +=
+                    "───────────────────────────────────────────────────────────\n";
+                content += "BROKER PRICES (USDT/THB) - Manual Entry\n";
+                content +=
+                    "───────────────────────────────────────────────────────────\n";
+                session.broker_prices.forEach((entry: any) => {
+                    const time = new Date(entry.timestamp).toLocaleString(
+                        "th-TH",
+                    );
+                    content += `${entry.broker.padEnd(10)} BID: ${entry.bid.padStart(8)}  ASK: ${entry.ask.padStart(8)}  [${time}]\n`;
+                    if (entry.note) {
+                        content += `           📝 ${entry.note}\n`;
+                    }
+                });
+                content += "\n";
+            }
+
             // OTC Operations
             if (
                 (session.otc_transactions &&
@@ -1159,6 +1178,42 @@
                 </div>
             {/if}
 
+            <!-- Broker Prices (Manual) -->
+            {#if session.broker_prices && session.broker_prices.length > 0}
+                <div class="detail-card">
+                    <h3>📊 Broker Prices (USDT/THB)</h3>
+                    <div class="broker-prices-list">
+                        {#each session.broker_prices as entry}
+                            <div class="broker-price-entry">
+                                <div class="broker-entry-header">
+                                    <span class="broker-entry-name"
+                                        >{entry.broker}</span
+                                    >
+                                    <span class="broker-entry-time">
+                                        {new Date(
+                                            entry.timestamp,
+                                        ).toLocaleString("th-TH")}
+                                    </span>
+                                </div>
+                                <div class="broker-entry-values">
+                                    <span class="bid-badge"
+                                        >BID: {entry.bid}</span
+                                    >
+                                    <span class="ask-badge"
+                                        >ASK: {entry.ask}</span
+                                    >
+                                </div>
+                                {#if entry.note}
+                                    <div class="broker-entry-note">
+                                        📝 {entry.note}
+                                    </div>
+                                {/if}
+                            </div>
+                        {/each}
+                    </div>
+                </div>
+            {/if}
+
             {#if (session.otc_transactions && session.otc_transactions.length > 0) || session.prefund_current}
                 <div class="detail-card">
                     <h3>OTC Operations</h3>
@@ -1202,6 +1257,13 @@
                         </div>
                     {/if}
 
+                    {#if session.otc_notes}
+                        <div class="notes-box">
+                            <span class="label">OTC Notes:</span>
+                            <p>{session.otc_notes}</p>
+                        </div>
+                    {/if}
+
                     <div class="prefund-section" style="margin-top: 1.5rem;">
                         <PrefundTracker
                             current={session.prefund_current || 0}
@@ -1209,16 +1271,16 @@
                         />
                     </div>
 
+                    {#if session.prefund_notes}
+                        <div class="notes-box">
+                            <span class="label">Prefund Status Notes:</span>
+                            <p>{session.prefund_notes}</p>
+                        </div>
+                    {/if}
                     {#if session.matching_notes}
                         <div class="notes-box">
                             <span class="label">Matching Notes:</span>
                             <p>{session.matching_notes}</p>
-                        </div>
-                    {/if}
-                    {#if session.otc_notes}
-                        <div class="notes-box">
-                            <span class="label">OTC Notes:</span>
-                            <p>{session.otc_notes}</p>
                         </div>
                     {/if}
                 </div>
@@ -2200,5 +2262,69 @@
     .ai-summary-section {
         padding: 0;
         overflow: hidden;
+    }
+
+    /* Broker Prices Styles */
+    .broker-prices-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .broker-price-entry {
+        padding: 0.75rem;
+        background: var(--color-bg-secondary);
+        border-radius: 8px;
+        border: 1px solid var(--color-border-light);
+    }
+
+    .broker-entry-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+
+    .broker-entry-name {
+        font-weight: 700;
+        font-size: 0.9375rem;
+        color: var(--color-text);
+    }
+
+    .broker-entry-time {
+        font-size: 0.75rem;
+        color: var(--color-text-tertiary);
+    }
+
+    .broker-entry-values {
+        display: flex;
+        gap: 0.75rem;
+    }
+
+    .bid-badge,
+    .ask-badge {
+        font-size: 0.8125rem;
+        font-weight: 500;
+        padding: 0.25rem 0.5rem;
+        border-radius: 6px;
+    }
+
+    .bid-badge {
+        color: #34c759;
+        background: rgba(52, 199, 89, 0.1);
+    }
+
+    .ask-badge {
+        color: #ff3b30;
+        background: rgba(255, 59, 48, 0.1);
+    }
+
+    .broker-entry-note {
+        font-size: 0.75rem;
+        color: var(--color-text-secondary);
+        margin-top: 0.25rem;
+        padding: 0.25rem 0.5rem;
+        background: rgba(0, 0, 0, 0.03);
+        border-radius: 4px;
     }
 </style>

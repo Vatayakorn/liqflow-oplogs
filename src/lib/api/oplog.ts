@@ -43,6 +43,7 @@ export interface OplogSession {
     otc_transactions: any[] | null;
     prefund_current: number | null;
     prefund_target: number | null;
+    prefund_notes: string | null;
     matching_notes: string | null;
     otc_notes: string | null;
     market_context: any | null; // Full market snapshot
@@ -54,6 +55,13 @@ export interface OplogSession {
     action_taken: string | null;
     note: string;
     edit_history: EditHistoryEntry[] | null;
+    broker_prices?: BrokerPriceEntry[];
+    fx_prices?: FxPriceEntry[];
+    maxbit_prices?: MaxbitPriceEntry[];
+    bitazza_prices?: MaxbitPriceEntry[];
+    zcom_prices?: MaxbitPriceEntry[];
+    xspring_prices?: MaxbitPriceEntry[];
+    exchange_prices?: ExchangePriceEntry[];
     created_at: string;
     images?: OplogSessionImage[];
     audio?: OplogSessionAudio[];
@@ -89,6 +97,44 @@ export interface OplogSessionAudio {
     created_at: string;
 }
 
+export interface BrokerPriceEntry {
+    id: string;
+    broker: 'Xspring' | 'Zcom' | 'Bitazza';
+    bid: string;
+    ask: string;
+    note?: string;
+    timestamp: string; // ISO datetime
+}
+
+export interface FxPriceEntry {
+    id: string;
+    rate: string;
+    note?: string;
+    timestamp: string; // ISO datetime
+}
+
+export interface MaxbitPriceEntry {
+    id: string;
+    bid: string;
+    ask: string;
+    note?: string;
+    timestamp: string; // ISO datetime
+}
+
+export interface ExchangePriceEntry {
+    id: string;
+    exchange1: string;
+    exchange1Bid: string;
+    exchange1Ask: string;
+    exchange2: string;
+    exchange2Bid: string;
+    exchange2Ask: string;
+    diff: string;
+    higher: string;
+    note?: string;
+    timestamp: string; // ISO datetime
+}
+
 export interface CreateSessionPayload {
     log_date: string;
     shift?: 'A' | 'B' | 'C';
@@ -114,6 +160,7 @@ export interface CreateSessionPayload {
     otc_transactions?: any[];
     prefund_current?: number;
     prefund_target?: number;
+    prefund_notes?: string;
     matching_notes?: string;
     otc_notes?: string;
     market_context?: any; // Full market snapshot
@@ -124,6 +171,13 @@ export interface CreateSessionPayload {
     pnl_snapshot?: number;
     action_taken?: string;
     note: string;
+    broker_prices?: BrokerPriceEntry[];
+    fx_prices?: FxPriceEntry[];
+    maxbit_prices?: MaxbitPriceEntry[];
+    bitazza_prices?: MaxbitPriceEntry[];
+    zcom_prices?: MaxbitPriceEntry[];
+    xspring_prices?: MaxbitPriceEntry[];
+    exchange_prices?: ExchangePriceEntry[];
 }
 
 // ============================================
@@ -317,7 +371,7 @@ export async function updateSessionWithHistory(
         'fx_rate', 'fx_notes', 'btz_bid', 'btz_ask', 'btz_notes',
         'exchange1', 'exchange1_price', 'exchange2', 'exchange2_price',
         'exchange_diff', 'exchange_higher', 'exchange_notes',
-        'prefund_current', 'prefund_target', 'matching_notes', 'otc_notes', 'note', 'shift'
+        'prefund_current', 'prefund_target', 'prefund_notes', 'matching_notes', 'otc_notes', 'note', 'shift'
     ];
 
     for (const field of trackableFields) {
@@ -641,4 +695,27 @@ export function groupSessionsByShift(sessions: OplogSession[]): Record<string, O
         acc[shift].push(session);
         return acc;
     }, {} as Record<string, OplogSession[]>);
+}
+
+/**
+ * Get the latest prefund values from the most recent session
+ * @returns Latest prefund_current and prefund_target, or null if no sessions exist
+ */
+export async function getLatestPrefundValues(): Promise<{ prefund_current: number; prefund_target: number } | null> {
+    const { data, error } = await supabase
+        .from('oplog_sessions')
+        .select('prefund_current, prefund_target')
+        .not('prefund_current', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+    if (error || !data) {
+        return null;
+    }
+
+    return {
+        prefund_current: data.prefund_current || 0,
+        prefund_target: data.prefund_target || 760000
+    };
 }

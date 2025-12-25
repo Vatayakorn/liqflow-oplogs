@@ -9,7 +9,7 @@ export const TEAM_MEMBERS = [
     { value: 'WIM', label: 'WIM' },
     { value: 'YEE', label: 'YEE' },
     { value: 'TAN', label: 'TAN' },
-    { value: 'ORM', label: 'ORM' },
+    { value: 'AOM', label: 'AOM' },
     { value: 'BIRD', label: 'BIRD' },
     { value: 'FOURWHEEL', label: 'FOURWHEEL' },
 ] as const;
