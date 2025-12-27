@@ -1494,7 +1494,6 @@
         title="FX (Spot Rate)"
         logoUrl={BROKER_METADATA.Google.logo}
         logoStyle="width: 40px; height: auto;"
-        icon="📊"
         badge={fxPrices.length || null}
     >
         <div class="section-action">
@@ -1607,7 +1606,6 @@
     <CollapsibleSection
         title="Broker (Bitazza)"
         logoUrl={BROKER_METADATA.Bitazza.logo}
-        icon="🏦"
         badge={bitazzaPrices.length || null}
     >
         <!-- Bitazza Hacky Bot Parser -->
@@ -1836,12 +1834,10 @@
         {/if}
     </CollapsibleSection>
 
-    <!-- Broker (Zcom) - Manual Entry -->
     <CollapsibleSection
         title="Broker (Zcom)"
         logoUrl={BROKER_METADATA.Zcom.logo}
         logoStyle="transform: scale(1.5); transform-origin: center;"
-        icon="🏦"
         badge={zcomPrices.length || null}
     >
         <div class="bid-ask-row">
@@ -1946,12 +1942,10 @@
         {/if}
     </CollapsibleSection>
 
-    <!-- Broker (Xspring) - Manual Entry -->
     <CollapsibleSection
         title="Broker (Xspring)"
         logoUrl={BROKER_METADATA.Xspring.logo}
         logoStyle="transform: scale(1.4); transform-origin: center;"
-        icon="🏦"
         badge={xspringPrices.length || null}
     >
         <div class="bid-ask-row">
@@ -2058,11 +2052,9 @@
         {/if}
     </CollapsibleSection>
 
-    <!-- Broker Section -->
     <CollapsibleSection
         title="Broker (Maxbit)"
         logoUrl={BROKER_METADATA.Maxbit.logo}
-        icon="🏦"
         badge={maxbitPrices.length || null}
     >
         <div class="section-action">

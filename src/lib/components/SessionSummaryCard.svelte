@@ -104,7 +104,7 @@
 
         <!-- Prefund Status -->
         <div class="metric-card">
-            <div class="metric-icon">🏦</div>
+            <div class="metric-icon"></div>
             <div class="metric-content">
                 <span class="metric-label">Prefund</span>
                 <span class="metric-value" style="color: {prefundColor}"
