@@ -15,6 +15,10 @@
     let prefundData: PrefundDataPoint[] = [];
     let marketData: MarketComparisonPoint[] = [];
     let isLoading = true;
+    let isMarketLoading = false;
+    let isSpreadLoading = false;
+    let isPrefundLoading = false;
+    let initialized = false; // Flag to prevent duplicate API calls
 
     let spreadHours = 24;
     let marketHours = 24;
@@ -27,43 +31,78 @@
             loadMarketData(),
         ]);
         isLoading = false;
+        initialized = true; // Mark as initialized after first load
     });
 
     async function loadSpreadData() {
+        isSpreadLoading = true;
         try {
             spreadData = await getSpreadTrend(spreadHours);
         } catch (e) {
             toast.error("Failed to load spread data");
+        } finally {
+            isSpreadLoading = false;
         }
     }
 
     async function loadPrefundData() {
+        isPrefundLoading = true;
         try {
             prefundData = await getPrefundHistory(prefundHours);
         } catch (e) {
             toast.error("Failed to load prefund data");
+        } finally {
+            isPrefundLoading = false;
         }
     }
 
     async function loadMarketData() {
+        isMarketLoading = true;
         try {
             marketData = await getMarketComparison(marketHours);
         } catch (e) {
             toast.error("Failed to load market context data");
+        } finally {
+            isMarketLoading = false;
         }
     }
 
-    $: if (spreadHours) {
+    $: if (initialized && spreadHours) {
         loadSpreadData();
     }
 
-    $: if (marketHours) {
+    $: if (initialized && marketHours) {
         loadMarketData();
     }
 
-    $: if (prefundHours) {
+    $: if (initialized && prefundHours) {
         loadPrefundData();
     }
+
+    // Computed counts for display
+    $: marketDataCount = marketData.length;
+    $: spreadDataCount = spreadData.length;
+    $: prefundDataCount = prefundData.length;
+
+    // Get actual time range from data (generic function for all chart types)
+    function getDataTimeRange(data: { time: number }[]): string {
+        if (data.length === 0) return "No data";
+        const earliest = new Date(Math.min(...data.map((d) => d.time)) * 1000);
+        const latest = new Date(Math.max(...data.map((d) => d.time)) * 1000);
+        const fmt = (d: Date) =>
+            d.toLocaleDateString("en-GB", {
+                day: "2-digit",
+                month: "short",
+                hour: "2-digit",
+                minute: "2-digit",
+            });
+        return `${fmt(earliest)} - ${fmt(latest)}`;
+    }
+
+    // Get time range for market data (all sources combined)
+    $: marketTimeRange = getDataTimeRange(marketData);
+    $: spreadTimeRange = getDataTimeRange(spreadData);
+    $: prefundTimeRange = getDataTimeRange(prefundData);
 </script>
 
 <svelte:head>
@@ -88,16 +127,18 @@
                 <div class="section-header">
                     <div class="title-group">
                         <span class="icon">🔍</span>
-                        <h3>Market Price Comparison (ALL)</h3>
+                        <h3>Market Price Comparison</h3>
+                        <span class="data-badge">{marketDataCount} points</span>
                     </div>
                     <div class="controls">
+                        <span class="data-range">{marketTimeRange}</span>
                         <select bind:value={marketHours}>
                             <option value={1}>1 Hour</option>
-                            <option value={3}>3 Hours</option>
-                            <option value={6}>6 Hours</option>
+                            <option value={4}>4 Hours</option>
                             <option value={12}>12 Hours</option>
                             <option value={24}>24 Hours</option>
-                            <option value={168}>7 Days</option>
+                            <option value={72}>3 Days</option>
+                            <option value={168}>1 Week</option>
                         </select>
                     </div>
                 </div>
@@ -106,6 +147,7 @@
                     <AnalyticsChart
                         title="Market Context Evolution"
                         height={400}
+                        isLoading={isMarketLoading}
                         seriesData={[
                             {
                                 label: "Bitkub",
@@ -138,6 +180,36 @@
                                     })),
                             },
                             {
+                                label: "Zcom",
+                                color: "#ef4444",
+                                data: marketData
+                                    .filter((d) => d.source === "zcom")
+                                    .map((d) => ({
+                                        time: d.time,
+                                        value: d.price,
+                                    })),
+                            },
+                            {
+                                label: "Xspring",
+                                color: "#22c55e",
+                                data: marketData
+                                    .filter((d) => d.source === "xspring")
+                                    .map((d) => ({
+                                        time: d.time,
+                                        value: d.price,
+                                    })),
+                            },
+                            {
+                                label: "Bitazza",
+                                color: "#8b5cf6",
+                                data: marketData
+                                    .filter((d) => d.source === "bitazza")
+                                    .map((d) => ({
+                                        time: d.time,
+                                        value: d.price,
+                                    })),
+                            },
+                            {
                                 label: "FX (Spot)",
                                 color: "#94a3b8",
                                 data: marketData
@@ -163,14 +235,17 @@
                     <div class="title-group">
                         <span class="icon">📈</span>
                         <h3>Spread Trend (Bitkub vs BinanceTH)</h3>
+                        <span class="data-badge">{spreadDataCount} points</span>
                     </div>
                     <div class="controls">
+                        <span class="data-range">{spreadTimeRange}</span>
                         <select bind:value={spreadHours}>
                             <option value={1}>1 Hour</option>
-                            <option value={6}>6 Hours</option>
+                            <option value={4}>4 Hours</option>
                             <option value={12}>12 Hours</option>
                             <option value={24}>24 Hours</option>
-                            <option value={168}>7 Days</option>
+                            <option value={72}>3 Days</option>
+                            <option value={168}>1 Week</option>
                         </select>
                     </div>
                 </div>
@@ -179,6 +254,7 @@
                     <AnalyticsChart
                         title="Price Spread Evolution"
                         height={350}
+                        isLoading={isSpreadLoading}
                         seriesData={[
                             {
                                 label: "Absolute Spread (THB)",
@@ -213,15 +289,18 @@
                     <div class="title-group">
                         <span class="icon">💰</span>
                         <h3>Prefund Status History</h3>
+                        <span class="data-badge">{prefundDataCount} points</span
+                        >
                     </div>
                     <div class="controls">
+                        <span class="data-range">{prefundTimeRange}</span>
                         <select bind:value={prefundHours}>
                             <option value={1}>1 Hour</option>
-                            <option value={3}>3 Hours</option>
-                            <option value={6}>6 Hours</option>
+                            <option value={4}>4 Hours</option>
                             <option value={12}>12 Hours</option>
                             <option value={24}>24 Hours</option>
-                            <option value={168}>7 Days</option>
+                            <option value={72}>3 Days</option>
+                            <option value={168}>1 Week</option>
                         </select>
                     </div>
                 </div>
@@ -230,10 +309,12 @@
                     <AnalyticsChart
                         title="Liquidity & Capital Utilization"
                         height={350}
+                        isLoading={isPrefundLoading}
                         seriesData={[
                             {
                                 label: "Current Prefund",
                                 color: "#f59e0b",
+                                type: "area",
                                 data: prefundData.map((d) => ({
                                     time: d.time,
                                     value: d.current,
@@ -334,6 +415,31 @@
         font-size: 0.875rem;
         color: var(--color-text-secondary);
         outline: none;
+    }
+
+    .controls {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .data-badge {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+        font-size: 0.75rem;
+        font-weight: 600;
+        padding: 0.25rem 0.5rem;
+        border-radius: 12px;
+        letter-spacing: 0.02em;
+    }
+
+    .data-range {
+        font-size: 0.8125rem;
+        color: var(--color-text-tertiary);
+        background: var(--color-bg-tertiary, #f8fafc);
+        padding: 0.25rem 0.625rem;
+        border-radius: 6px;
+        white-space: nowrap;
     }
 
     .insight-box {

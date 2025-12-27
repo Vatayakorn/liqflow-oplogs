@@ -1,14 +1,21 @@
 <script lang="ts">
     import { onMount, onDestroy } from "svelte";
-    import { createChart, ColorType, LineSeries } from "lightweight-charts";
+    import {
+        createChart,
+        ColorType,
+        LineSeries,
+        AreaSeries,
+    } from "lightweight-charts";
 
     export let seriesData: {
         label: string;
         color: string;
         data: { time: number; value: number }[];
+        type?: "line" | "area"; // Support both
     }[] = [];
     export let title: string = "Analytics Chart";
     export let height: number = 400;
+    export let isLoading: boolean = false;
 
     let chartContainer: HTMLElement;
     let chart: any;
@@ -20,17 +27,52 @@
         chart = createChart(chartContainer, {
             layout: {
                 background: { type: ColorType.Solid, color: "transparent" },
-                textColor: "#333",
+                textColor: "#64748b",
+                fontFamily: "Inter, sans-serif",
             },
             width: chartContainer.clientWidth,
             height: height,
             grid: {
-                vertLines: { color: "rgba(197, 203, 206, 0.5)" },
-                horzLines: { color: "rgba(197, 203, 206, 0.5)" },
+                vertLines: { color: "rgba(148, 163, 184, 0.1)" },
+                horzLines: { color: "rgba(148, 163, 184, 0.1)" },
             },
             timeScale: {
                 timeVisible: true,
                 secondsVisible: false,
+                borderColor: "rgba(148, 163, 184, 0.2)",
+                tickMarkFormatter: (time: number) => {
+                    const date = new Date(time * 1000);
+                    return date.toLocaleTimeString("th-TH", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                    });
+                },
+            },
+            rightPriceScale: {
+                borderColor: "rgba(148, 163, 184, 0.2)",
+                autoScale: true,
+            },
+            crosshair: {
+                mode: 0,
+                vertLine: {
+                    width: 1,
+                    color: "rgba(148, 163, 184, 0.5)",
+                    style: 2,
+                },
+                horzLine: {
+                    width: 1,
+                    color: "rgba(148, 163, 184, 0.5)",
+                    style: 2,
+                },
+            },
+            handleScroll: {
+                mouseWheel: true,
+                pressedMouseMove: true,
+            },
+            handleScale: {
+                axisPressedMouseMove: true,
+                mouseWheel: true,
+                pinch: true,
             },
         });
 
@@ -59,11 +101,25 @@
         seriesInstances = [];
 
         seriesData.forEach((s) => {
-            const instance = chart.addSeries(LineSeries, {
+            const isArea =
+                s.type === "area" ||
+                (seriesData.length === 1 &&
+                    s.label.toLowerCase().includes("prefund"));
+            const SeriesClass = isArea ? AreaSeries : LineSeries;
+
+            const options: any = {
                 color: s.color,
                 lineWidth: 2,
                 title: s.label,
-            });
+            };
+
+            if (isArea) {
+                options.lineColor = s.color;
+                options.topColor = `${s.color}44`;
+                options.bottomColor = `${s.color}05`;
+            }
+
+            const instance = chart.addSeries(SeriesClass, options);
 
             const timeMap = new Map();
             s.data.forEach((item) => {
@@ -103,7 +159,14 @@
             {/each}
         </div>
     </div>
-    <div class="chart-container" bind:this={chartContainer}></div>
+    <div class="chart-container-relative">
+        <div class="chart-container" bind:this={chartContainer}></div>
+        {#if isLoading}
+            <div class="loading-overlay">
+                <div class="shimmer"></div>
+            </div>
+        {/if}
+    </div>
 </div>
 
 <style>
@@ -155,8 +218,51 @@
         border-radius: 50%;
     }
 
+    .chart-container-relative {
+        width: 100%;
+        position: relative;
+    }
+
     .chart-container {
         width: 100%;
         position: relative;
+    }
+
+    .loading-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255, 255, 255, 0.3);
+        backdrop-filter: blur(2px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .shimmer {
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(
+            90deg,
+            rgba(255, 255, 255, 0) 0%,
+            rgba(255, 255, 255, 0.4) 50%,
+            rgba(255, 255, 255, 0) 100%
+        );
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite linear;
+    }
+
+    @keyframes shimmer {
+        0% {
+            background-position: 200% 0;
+        }
+        100% {
+            background-position: -200% 0;
+        }
     }
 </style>
