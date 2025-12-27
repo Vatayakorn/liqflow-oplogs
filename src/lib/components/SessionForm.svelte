@@ -33,7 +33,7 @@
         MaxbitPriceEntry,
         ExchangePriceEntry,
     } from "$lib/api/oplog";
-    import { getLatestPrefundValues } from "$lib/api/oplog";
+    import { getLatestSessionData } from "$lib/api/oplog";
     import {
         fetchMaxbitPrice,
         fetchBitkubOrderBook,
@@ -557,11 +557,28 @@
         if (!initialData) {
             marketFeed.connect();
 
-            // Fetch last saved prefund values for new sessions
-            getLatestPrefundValues().then((lastPrefund) => {
-                if (lastPrefund) {
-                    prefundCurrent = lastPrefund.prefund_current;
-                    prefundTarget = lastPrefund.prefund_target;
+            // Fetch last saved values for new sessions
+            getLatestSessionData().then((lastSession) => {
+                if (lastSession) {
+                    // Team members
+                    if (lastSession.broker) broker = lastSession.broker;
+                    if (lastSession.trader) trader = lastSession.trader;
+                    if (lastSession.head) head = lastSession.head;
+                    if (lastSession.recorder) recorder = lastSession.recorder;
+
+                    // Prefund values
+                    if (
+                        lastSession.prefund_current !== undefined &&
+                        lastSession.prefund_current !== null
+                    ) {
+                        prefundCurrent = lastSession.prefund_current;
+                    }
+                    if (
+                        lastSession.prefund_target !== undefined &&
+                        lastSession.prefund_target !== null
+                    ) {
+                        prefundTarget = lastSession.prefund_target;
+                    }
                 }
             });
         }

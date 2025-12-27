@@ -702,14 +702,13 @@ export function groupSessionsByShift(sessions: OplogSession[]): Record<string, O
 }
 
 /**
- * Get the latest prefund values from the most recent session
- * @returns Latest prefund_current and prefund_target, or null if no sessions exist
+ * Get the latest session data to use as defaults for new sessions
+ * @returns Partial session data or null
  */
-export async function getLatestPrefundValues(): Promise<{ prefund_current: number; prefund_target: number } | null> {
+export async function getLatestSessionData(): Promise<Partial<OplogSession> | null> {
     const { data, error } = await supabase
         .from('oplog_sessions')
-        .select('prefund_current, prefund_target')
-        .not('prefund_current', 'is', null)
+        .select('prefund_current, prefund_target, broker, trader, head, recorder')
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
@@ -718,8 +717,21 @@ export async function getLatestPrefundValues(): Promise<{ prefund_current: numbe
         return null;
     }
 
+    return data;
+}
+
+/**
+ * Get the latest prefund values from the most recent session
+ * @returns Latest prefund_current and prefund_target, or null if no sessions exist
+ * @deprecated Use getLatestSessionData instead
+ */
+export async function getLatestPrefundValues(): Promise<{ prefund_current: number; prefund_target: number } | null> {
+    const data = await getLatestSessionData();
+    if (!data) return null;
+
     return {
         prefund_current: data.prefund_current || 0,
         prefund_target: data.prefund_target || 760000
     };
 }
+
