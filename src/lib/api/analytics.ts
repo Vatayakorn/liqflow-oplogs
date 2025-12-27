@@ -34,7 +34,7 @@ export async function getSpreadTrend(hours = 6): Promise<SpreadDataPoint[]> {
         .in('source', ['bitkub', 'binance_th'])
         .gte('created_at', startTime)
         .order('created_at', { ascending: true })
-        .limit(2000);
+        .limit(10000);
 
     if (error) {
         console.error('Error fetching spread trend:', error);
@@ -88,7 +88,7 @@ export async function getPrefundHistory(hours = 6): Promise<PrefundDataPoint[]> 
         .gte('created_at', startTime)
         .not('prefund_current', 'is', null)
         .order('created_at', { ascending: true })
-        .limit(500);
+        .limit(2000);
 
     if (error) {
         console.error('Error fetching prefund history:', error);
@@ -119,7 +119,7 @@ export async function getMarketComparison(hours = 6): Promise<MarketComparisonPo
         .select('created_at, source, price')
         .gte('created_at', startTime)
         .order('created_at', { ascending: true })
-        .limit(2000);
+        .limit(10000);
 
     if (error) {
         console.error('Error fetching market comparison:', error);

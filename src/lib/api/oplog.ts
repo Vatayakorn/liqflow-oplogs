@@ -32,6 +32,8 @@ export interface OplogSession {
     fx_notes: string | null;
     btz_bid: number | null;
     btz_ask: number | null;
+    btz_usdc_bid: number | null;
+    btz_usdc_ask: number | null;
     btz_notes: string | null;
     exchange1: string | null;
     exchange1_price: string | null;
@@ -149,6 +151,8 @@ export interface CreateSessionPayload {
     fx_notes?: string;
     btz_bid?: number;
     btz_ask?: number;
+    btz_usdc_bid?: number;
+    btz_usdc_ask?: number;
     btz_notes?: string;
     exchange1?: string;
     exchange1_price?: string;
@@ -368,7 +372,7 @@ export async function updateSessionWithHistory(
     const changes: ChangeEntry[] = [];
     const trackableFields = [
         'start_time', 'end_time', 'broker', 'trader', 'head', 'recorder',
-        'fx_rate', 'fx_notes', 'btz_bid', 'btz_ask', 'btz_notes',
+        'fx_rate', 'fx_notes', 'btz_bid', 'btz_ask', 'btz_usdc_bid', 'btz_usdc_ask', 'btz_notes',
         'exchange1', 'exchange1_price', 'exchange2', 'exchange2_price',
         'exchange_diff', 'exchange_higher', 'exchange_notes',
         'prefund_current', 'prefund_target', 'prefund_notes', 'matching_notes', 'otc_notes', 'note', 'shift'

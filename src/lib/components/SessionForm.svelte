@@ -77,6 +77,8 @@
         fxNotes = data.fx_notes || "";
         btzBid = data.btz_bid?.toString() || "";
         btzAsk = data.btz_ask?.toString() || "";
+        bitazzaUsdcBid = data.btz_usdc_bid?.toString() || "";
+        bitazzaUsdcAsk = data.btz_usdc_ask?.toString() || "";
         btzNotes = data.btz_notes || "";
 
         exchange1 = data.exchange1 || "Bitkub";
@@ -197,9 +199,12 @@
     // === Broker (Bitazza) - Manual ===
     let bitazzaBid = "";
     let bitazzaAsk = "";
+    let bitazzaUsdcBid = "";
+    let bitazzaUsdcAsk = "";
     let bitazzaNotes = "";
     let bitazzaPrices: MaxbitPriceEntry[] = [];
     let bitazzaSaveNote = "";
+    let bitazzaParserText = "";
 
     // === Broker (Zcom) - Manual ===
     let zcomBid = "";
@@ -317,19 +322,90 @@
 
     // Save Bitazza price
     function saveBitazzaPrice() {
-        if (!bitazzaBid || !bitazzaAsk) {
-            toast.error("Please enter BID and ASK");
+        if (!bitazzaBid && !bitazzaAsk && !bitazzaUsdcBid && !bitazzaUsdcAsk) {
+            toast.error("Please enter BID and ASK for USDT or USDC");
             return;
         }
-        const entry: MaxbitPriceEntry = {
-            id: crypto.randomUUID(),
-            bid: bitazzaBid,
-            ask: bitazzaAsk,
-            note: bitazzaNotes || undefined,
-            timestamp: new Date().toISOString(),
-        };
-        bitazzaPrices = [...bitazzaPrices, entry];
-        toast.success("Bitazza Price Saved");
+
+        const timestamp = new Date().toISOString();
+        let entriesSaved = 0;
+
+        if (bitazzaBid || bitazzaAsk) {
+            const entry: MaxbitPriceEntry = {
+                id: crypto.randomUUID(),
+                bid: bitazzaBid,
+                ask: bitazzaAsk,
+                note:
+                    (bitazzaNotes ? `[USDT] ${bitazzaNotes}` : "USDT") ||
+                    undefined,
+                timestamp,
+            };
+            bitazzaPrices = [...bitazzaPrices, entry];
+            entriesSaved++;
+        }
+
+        if (bitazzaUsdcBid || bitazzaUsdcAsk) {
+            const entry: MaxbitPriceEntry = {
+                id: crypto.randomUUID(),
+                bid: bitazzaUsdcBid,
+                ask: bitazzaUsdcAsk,
+                note:
+                    (bitazzaNotes ? `[USDC] ${bitazzaNotes}` : "USDC") ||
+                    undefined,
+                timestamp,
+            };
+            bitazzaPrices = [...bitazzaPrices, entry];
+            entriesSaved++;
+        }
+
+        if (entriesSaved > 0) {
+            toast.success(`Bitazza Price${entriesSaved > 1 ? "s" : ""} Saved`);
+        }
+    }
+
+    function parseBitazzaRates() {
+        if (!bitazzaParserText) {
+            toast.error("Please paste Bitazza text first");
+            return;
+        }
+
+        const usdtBidMatch = bitazzaParserText.match(
+            /USDT>THB \(Bid\) คือ ([\d.]+)/,
+        );
+        const usdtAskMatch = bitazzaParserText.match(
+            /THB>USDT \(Ask\) คือ ([\d.]+)/,
+        );
+        const usdcBidMatch = bitazzaParserText.match(
+            /USDC>THB \(Bid\) คือ ([\d.]+)/,
+        );
+        const usdcAskMatch = bitazzaParserText.match(
+            /THB>USDC \(Ask\) คือ ([\d.]+)/,
+        );
+
+        let found = false;
+        if (usdtBidMatch) {
+            bitazzaBid = usdtBidMatch[1];
+            found = true;
+        }
+        if (usdtAskMatch) {
+            bitazzaAsk = usdtAskMatch[1];
+            found = true;
+        }
+        if (usdcBidMatch) {
+            bitazzaUsdcBid = usdcBidMatch[1];
+            found = true;
+        }
+        if (usdcAskMatch) {
+            bitazzaUsdcAsk = usdcAskMatch[1];
+            found = true;
+        }
+
+        if (found) {
+            toast.success("Prices parsed successfully!");
+            bitazzaParserText = "";
+        } else {
+            toast.error("Could not find any prices. Please check the format.");
+        }
     }
 
     function removeBitazzaPrice(id: string) {
@@ -928,6 +1004,12 @@
                 // Broker
                 btz_bid: btzBid ? parseFloat(btzBid) : null,
                 btz_ask: btzAsk ? parseFloat(btzAsk) : null,
+                btz_usdc_bid: bitazzaUsdcBid
+                    ? parseFloat(bitazzaUsdcBid)
+                    : null,
+                btz_usdc_ask: bitazzaUsdcAsk
+                    ? parseFloat(bitazzaUsdcAsk)
+                    : null,
                 btz_notes: btzNotes,
                 // Exchange
                 exchange1,
@@ -1026,9 +1108,12 @@
         // Bitazza, Zcom, Xspring
         bitazzaBid = "";
         bitazzaAsk = "";
+        bitazzaUsdcBid = "";
+        bitazzaUsdcAsk = "";
         bitazzaNotes = "";
         bitazzaPrices = [];
         bitazzaSaveNote = "";
+        bitazzaParserText = "";
         zcomBid = "";
         zcomAsk = "";
         zcomNotes = "";
@@ -1295,26 +1380,145 @@
         icon="🏦"
         badge={bitazzaPrices.length || null}
     >
-        <div class="bid-ask-row">
-            <div class="field">
-                <label>BID</label>
-                <input
-                    type="number"
-                    step="0.001"
-                    bind:value={bitazzaBid}
-                    placeholder="33.95"
+        <!-- Bitazza Hacky Bot Parser -->
+        <div
+            class="parser-section"
+            style="margin-bottom: 1.5rem; padding: 1rem; background: #f8f9fa; border-radius: 8px; border: 1px dashed #dee2e6;"
+        >
+            <label
+                style="display: block; font-size: 0.75rem; font-weight: 600; color: #6c757d; margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.025em;"
+            >
+                🤖 (Copy from Bitazza)
+            </label>
+            <div style="display: flex; gap: 0.5rem;">
+                <textarea
+                    bind:value={bitazzaParserText}
+                    placeholder="Paste Bitazza price text here..."
+                    rows="3"
+                    style="flex: 1; font-family: monospace; font-size: 0.8rem; padding: 0.5rem; border: 1px solid #ced4da; border-radius: 4px;"
                     disabled={disabled || isSubmitting}
-                />
+                ></textarea>
+                <button
+                    type="button"
+                    class="gen-btn"
+                    style="padding: 0 1rem; background: #28a745; color: white; border: none; border-radius: 4px; font-weight: 600; cursor: pointer;"
+                    on:click={parseBitazzaRates}
+                    disabled={disabled || isSubmitting}
+                >
+                    Gen
+                </button>
             </div>
-            <div class="field">
-                <label>ASK</label>
-                <input
-                    type="number"
-                    step="0.001"
-                    bind:value={bitazzaAsk}
-                    placeholder="34.05"
-                    disabled={disabled || isSubmitting}
-                />
+        </div>
+
+        <div
+            style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; margin-bottom: 1rem;"
+        >
+            <!-- USDT Section -->
+            <div
+                style="padding: 1rem; background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);"
+            >
+                <div
+                    style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;"
+                >
+                    <div
+                        style="width: 8px; height: 8px; border-radius: 50%; background: #26a17b;"
+                    ></div>
+                    <label
+                        style="font-size: 0.8rem; font-weight: 700; color: #212529; text-transform: uppercase; letter-spacing: 0.05em;"
+                        >USDT Price</label
+                    >
+                </div>
+                <div
+                    class="bid-ask-row"
+                    style="margin-bottom: 0; justify-content: flex-start; gap: 1rem;"
+                >
+                    <div
+                        class="field"
+                        style="flex: 0 1 120px; min-width: 100px;"
+                    >
+                        <label style="font-size: 0.65rem; color: #6c757d;"
+                            >BID</label
+                        >
+                        <input
+                            type="number"
+                            step="0.001"
+                            bind:value={bitazzaBid}
+                            placeholder="33.95"
+                            disabled={disabled || isSubmitting}
+                            style="border-color: #dee2e6; width: 100%;"
+                        />
+                    </div>
+                    <div
+                        class="field"
+                        style="flex: 0 1 120px; min-width: 100px;"
+                    >
+                        <label style="font-size: 0.65rem; color: #6c757d;"
+                            >ASK</label
+                        >
+                        <input
+                            type="number"
+                            step="0.001"
+                            bind:value={bitazzaAsk}
+                            placeholder="34.05"
+                            disabled={disabled || isSubmitting}
+                            style="border-color: #dee2e6; width: 100%;"
+                        />
+                    </div>
+                </div>
+            </div>
+
+            <!-- USDC Section -->
+            <div
+                style="padding: 1rem; background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);"
+            >
+                <div
+                    style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;"
+                >
+                    <div
+                        style="width: 8px; height: 8px; border-radius: 50%; background: #2775ca;"
+                    ></div>
+                    <label
+                        style="font-size: 0.8rem; font-weight: 700; color: #212529; text-transform: uppercase; letter-spacing: 0.05em;"
+                        >USDC Price</label
+                    >
+                </div>
+                <div
+                    class="bid-ask-row"
+                    style="margin-bottom: 0; justify-content: flex-start; gap: 1rem;"
+                >
+                    <div
+                        class="field"
+                        style="flex: 0 1 120px; min-width: 100px;"
+                    >
+                        <label style="font-size: 0.65rem; color: #6c757d;"
+                            >BID</label
+                        >
+                        <input
+                            type="number"
+                            step="0.001"
+                            bind:value={bitazzaUsdcBid}
+                            placeholder="33.95"
+                            disabled={disabled || isSubmitting}
+                            style="border-color: #dee2e6; width: 100%;"
+                        />
+                    </div>
+                    <div
+                        class="field"
+                        style="flex: 0 1 120px; min-width: 100px;"
+                    >
+                        <label style="font-size: 0.65rem; color: #6c757d;"
+                            >ASK</label
+                        >
+                        <input
+                            type="number"
+                            step="0.001"
+                            bind:value={bitazzaUsdcAsk}
+                            placeholder="34.05"
+                            disabled={disabled || isSubmitting}
+                            style="border-color: #dee2e6; width: 100%;"
+                        />
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -1336,9 +1540,12 @@
                 on:click={saveBitazzaPrice}
                 disabled={disabled ||
                     isSubmitting ||
-                    (!bitazzaBid && !bitazzaAsk)}
+                    (!bitazzaBid &&
+                        !bitazzaAsk &&
+                        !bitazzaUsdcBid &&
+                        !bitazzaUsdcAsk)}
             >
-                💾 Save Price
+                💾 Save Prices
             </button>
         </div>
 
