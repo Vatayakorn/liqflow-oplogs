@@ -33,11 +33,10 @@
     $: hiddenCount = filteredMessages.length - INITIAL_LIMIT;
 
     function formatTime(dateStr: string): string {
-        // Bot stores Thai local time as UTC timestamps
-        // So we extract the UTC hours/minutes directly without timezone conversion
+        // Convert UTC timestamp to local time (Thai timezone GMT+7)
         const date = new Date(dateStr);
-        const hours = date.getUTCHours().toString().padStart(2, "0");
-        const minutes = date.getUTCMinutes().toString().padStart(2, "0");
+        const hours = date.getHours().toString().padStart(2, "0");
+        const minutes = date.getMinutes().toString().padStart(2, "0");
         return `${hours}:${minutes}`;
     }
 
