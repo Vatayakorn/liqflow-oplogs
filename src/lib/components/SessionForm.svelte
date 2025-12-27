@@ -310,6 +310,26 @@
         fxPrices = fxPrices.filter((p) => p.id !== id);
     }
 
+    function toggleEditFxTimestamp(id: string) {
+        fxPrices = fxPrices.map((p) =>
+            p.id === id
+                ? { ...p, isEditingTimestamp: !p.isEditingTimestamp }
+                : p,
+        );
+    }
+
+    function handleFxTimestampChange(id: string, newTimestamp: string) {
+        fxPrices = fxPrices.map((p) =>
+            p.id === id
+                ? {
+                      ...p,
+                      timestamp: new Date(newTimestamp).toISOString(),
+                      isEditingTimestamp: false,
+                  }
+                : p,
+        );
+    }
+
     // Save current Maxbit BID/ASK with note
     function saveMaxbitPrice() {
         if (!btzBid || !btzAsk) {
@@ -329,6 +349,26 @@
 
     function removeMaxbitPrice(id: string) {
         maxbitPrices = maxbitPrices.filter((p) => p.id !== id);
+    }
+
+    function toggleEditMaxbitTimestamp(id: string) {
+        maxbitPrices = maxbitPrices.map((p) =>
+            p.id === id
+                ? { ...p, isEditingTimestamp: !p.isEditingTimestamp }
+                : p,
+        );
+    }
+
+    function handleMaxbitTimestampChange(id: string, newTimestamp: string) {
+        maxbitPrices = maxbitPrices.map((p) =>
+            p.id === id
+                ? {
+                      ...p,
+                      timestamp: new Date(newTimestamp).toISOString(),
+                      isEditingTimestamp: false,
+                  }
+                : p,
+        );
     }
 
     // Save Bitazza price
@@ -423,6 +463,26 @@
         bitazzaPrices = bitazzaPrices.filter((p) => p.id !== id);
     }
 
+    function toggleEditBitazzaTimestamp(id: string) {
+        bitazzaPrices = bitazzaPrices.map((p) =>
+            p.id === id
+                ? { ...p, isEditingTimestamp: !p.isEditingTimestamp }
+                : p,
+        );
+    }
+
+    function handleBitazzaTimestampChange(id: string, newTimestamp: string) {
+        bitazzaPrices = bitazzaPrices.map((p) =>
+            p.id === id
+                ? {
+                      ...p,
+                      timestamp: new Date(newTimestamp).toISOString(),
+                      isEditingTimestamp: false,
+                  }
+                : p,
+        );
+    }
+
     // Save Zcom price
     function saveZcomPrice() {
         if (!zcomBid || !zcomAsk) {
@@ -444,6 +504,26 @@
         zcomPrices = zcomPrices.filter((p) => p.id !== id);
     }
 
+    function toggleEditZcomTimestamp(id: string) {
+        zcomPrices = zcomPrices.map((p) =>
+            p.id === id
+                ? { ...p, isEditingTimestamp: !p.isEditingTimestamp }
+                : p,
+        );
+    }
+
+    function handleZcomTimestampChange(id: string, newTimestamp: string) {
+        zcomPrices = zcomPrices.map((p) =>
+            p.id === id
+                ? {
+                      ...p,
+                      timestamp: new Date(newTimestamp).toISOString(),
+                      isEditingTimestamp: false,
+                  }
+                : p,
+        );
+    }
+
     // Save Xspring price
     function saveXspringPrice() {
         if (!xspringBid || !xspringAsk) {
@@ -463,6 +543,26 @@
 
     function removeXspringPrice(id: string) {
         xspringPrices = xspringPrices.filter((p) => p.id !== id);
+    }
+
+    function toggleEditXspringTimestamp(id: string) {
+        xspringPrices = xspringPrices.map((p) =>
+            p.id === id
+                ? { ...p, isEditingTimestamp: !p.isEditingTimestamp }
+                : p,
+        );
+    }
+
+    function handleXspringTimestampChange(id: string, newTimestamp: string) {
+        xspringPrices = xspringPrices.map((p) =>
+            p.id === id
+                ? {
+                      ...p,
+                      timestamp: new Date(newTimestamp).toISOString(),
+                      isEditingTimestamp: false,
+                  }
+                : p,
+        );
     }
 
     // Save current Exchange Order Book data
@@ -490,6 +590,26 @@
 
     function removeExchangePrice(id: string) {
         exchangePrices = exchangePrices.filter((p) => p.id !== id);
+    }
+
+    function toggleEditExchangeTimestamp(id: string) {
+        exchangePrices = exchangePrices.map((p) =>
+            p.id === id
+                ? { ...p, isEditingTimestamp: !p.isEditingTimestamp }
+                : p,
+        );
+    }
+
+    function handleExchangeTimestampChange(id: string, newTimestamp: string) {
+        exchangePrices = exchangePrices.map((p) =>
+            p.id === id
+                ? {
+                      ...p,
+                      timestamp: new Date(newTimestamp).toISOString(),
+                      isEditingTimestamp: false,
+                  }
+                : p,
+        );
     }
 
     function formatBrokerTimestamp(isoStr: string): string {
@@ -1449,7 +1569,30 @@
                             </button>
                         </div>
                         <div class="history-timestamp">
-                            📅 {formatBrokerTimestamp(entry.timestamp)}
+                            {#if entry.isEditingTimestamp}
+                                <input
+                                    type="datetime-local"
+                                    value={new Date(entry.timestamp)
+                                        .toISOString()
+                                        .slice(0, 16)}
+                                    on:change={(e) =>
+                                        handleFxTimestampChange(
+                                            entry.id,
+                                            e.currentTarget.value,
+                                        )}
+                                    on:blur={() =>
+                                        toggleEditFxTimestamp(entry.id)}
+                                    class="timestamp-edit-input"
+                                />
+                            {:else}
+                                <span
+                                    on:click={() =>
+                                        toggleEditFxTimestamp(entry.id)}
+                                    style="cursor: pointer; display: inline-block;"
+                                >
+                                    📅 {formatBrokerTimestamp(entry.timestamp)}
+                                </span>
+                            {/if}
                         </div>
                         {#if entry.note}
                             <div class="history-note">📝 {entry.note}</div>
@@ -1659,7 +1802,30 @@
                             </button>
                         </div>
                         <div class="history-timestamp">
-                            📅 {formatBrokerTimestamp(entry.timestamp)}
+                            {#if entry.isEditingTimestamp}
+                                <input
+                                    type="datetime-local"
+                                    value={new Date(entry.timestamp)
+                                        .toISOString()
+                                        .slice(0, 16)}
+                                    on:change={(e) =>
+                                        handleBitazzaTimestampChange(
+                                            entry.id,
+                                            e.currentTarget.value,
+                                        )}
+                                    on:blur={() =>
+                                        toggleEditBitazzaTimestamp(entry.id)}
+                                    class="timestamp-edit-input"
+                                />
+                            {:else}
+                                <span
+                                    on:click={() =>
+                                        toggleEditBitazzaTimestamp(entry.id)}
+                                    style="cursor: pointer; display: inline-block;"
+                                >
+                                    📅 {formatBrokerTimestamp(entry.timestamp)}
+                                </span>
+                            {/if}
                         </div>
                         {#if entry.note}
                             <div class="history-note">📝 {entry.note}</div>
@@ -1746,7 +1912,30 @@
                             </button>
                         </div>
                         <div class="history-timestamp">
-                            📅 {formatBrokerTimestamp(entry.timestamp)}
+                            {#if entry.isEditingTimestamp}
+                                <input
+                                    type="datetime-local"
+                                    value={new Date(entry.timestamp)
+                                        .toISOString()
+                                        .slice(0, 16)}
+                                    on:change={(e) =>
+                                        handleZcomTimestampChange(
+                                            entry.id,
+                                            e.currentTarget.value,
+                                        )}
+                                    on:blur={() =>
+                                        toggleEditZcomTimestamp(entry.id)}
+                                    class="timestamp-edit-input"
+                                />
+                            {:else}
+                                <span
+                                    on:click={() =>
+                                        toggleEditZcomTimestamp(entry.id)}
+                                    style="cursor: pointer; display: inline-block;"
+                                >
+                                    📅 {formatBrokerTimestamp(entry.timestamp)}
+                                </span>
+                            {/if}
                         </div>
                         {#if entry.note}
                             <div class="history-note">📝 {entry.note}</div>
@@ -1835,7 +2024,30 @@
                             </button>
                         </div>
                         <div class="history-timestamp">
-                            📅 {formatBrokerTimestamp(entry.timestamp)}
+                            {#if entry.isEditingTimestamp}
+                                <input
+                                    type="datetime-local"
+                                    value={new Date(entry.timestamp)
+                                        .toISOString()
+                                        .slice(0, 16)}
+                                    on:change={(e) =>
+                                        handleXspringTimestampChange(
+                                            entry.id,
+                                            e.currentTarget.value,
+                                        )}
+                                    on:blur={() =>
+                                        toggleEditXspringTimestamp(entry.id)}
+                                    class="timestamp-edit-input"
+                                />
+                            {:else}
+                                <span
+                                    on:click={() =>
+                                        toggleEditXspringTimestamp(entry.id)}
+                                    style="cursor: pointer; display: inline-block;"
+                                >
+                                    📅 {formatBrokerTimestamp(entry.timestamp)}
+                                </span>
+                            {/if}
                         </div>
                         {#if entry.note}
                             <div class="history-note">📝 {entry.note}</div>
@@ -1942,7 +2154,30 @@
                             </button>
                         </div>
                         <div class="history-timestamp">
-                            📅 {formatBrokerTimestamp(entry.timestamp)}
+                            {#if entry.isEditingTimestamp}
+                                <input
+                                    type="datetime-local"
+                                    value={new Date(entry.timestamp)
+                                        .toISOString()
+                                        .slice(0, 16)}
+                                    on:change={(e) =>
+                                        handleMaxbitTimestampChange(
+                                            entry.id,
+                                            e.currentTarget.value,
+                                        )}
+                                    on:blur={() =>
+                                        toggleEditMaxbitTimestamp(entry.id)}
+                                    class="timestamp-edit-input"
+                                />
+                            {:else}
+                                <span
+                                    on:click={() =>
+                                        toggleEditMaxbitTimestamp(entry.id)}
+                                    style="cursor: pointer; display: inline-block;"
+                                >
+                                    📅 {formatBrokerTimestamp(entry.timestamp)}
+                                </span>
+                            {/if}
                         </div>
                         {#if entry.note}
                             <div class="history-note">📝 {entry.note}</div>
@@ -2226,7 +2461,30 @@
                             {/if}
                         </div>
                         <div class="history-timestamp">
-                            📅 {formatBrokerTimestamp(entry.timestamp)}
+                            {#if entry.isEditingTimestamp}
+                                <input
+                                    type="datetime-local"
+                                    value={new Date(entry.timestamp)
+                                        .toISOString()
+                                        .slice(0, 16)}
+                                    on:change={(e) =>
+                                        handleExchangeTimestampChange(
+                                            entry.id,
+                                            e.currentTarget.value,
+                                        )}
+                                    on:blur={() =>
+                                        toggleEditExchangeTimestamp(entry.id)}
+                                    class="timestamp-edit-input"
+                                />
+                            {:else}
+                                <span
+                                    on:click={() =>
+                                        toggleEditExchangeTimestamp(entry.id)}
+                                    style="cursor: pointer; display: inline-block;"
+                                >
+                                    📅 {formatBrokerTimestamp(entry.timestamp)}
+                                </span>
+                            {/if}
                         </div>
                         {#if entry.note}
                             <div class="history-note">📝 {entry.note}</div>
@@ -3659,5 +3917,15 @@
         padding: 0.125rem 0.375rem;
         background: rgba(0, 0, 0, 0.03);
         border-radius: 4px;
+    }
+
+    .timestamp-edit-input {
+        font-size: 0.75rem;
+        padding: 2px 4px;
+        border: 1px solid var(--color-border);
+        border-radius: 4px;
+        background: white;
+        width: 100%;
+        margin-top: 4px;
     }
 </style>
