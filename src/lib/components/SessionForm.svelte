@@ -220,6 +220,17 @@
     let xspringPrices: MaxbitPriceEntry[] = [];
     let xspringSaveNote = "";
 
+    // Reference prices from previous session
+    let lastZcomBid = "";
+    let lastZcomAsk = "";
+    let lastXspringBid = "";
+    let lastXspringAsk = "";
+    let lastBitazzaBid = "";
+    let lastBitazzaAsk = "";
+    let lastBitazzaUsdcBid = "";
+    let lastBitazzaUsdcAsk = "";
+    let lastFxRate = "";
+
     // === Exchange ===
     let exchange1 = "Bitkub";
     let exchange1Bid = "";
@@ -578,6 +589,65 @@
                         lastSession.prefund_target !== null
                     ) {
                         prefundTarget = lastSession.prefund_target;
+                    }
+
+                    // Price references for manual inputs
+                    if (
+                        lastSession.zcom_prices &&
+                        lastSession.zcom_prices.length > 0
+                    ) {
+                        const last =
+                            lastSession.zcom_prices[
+                                lastSession.zcom_prices.length - 1
+                            ];
+                        lastZcomBid = last.bid;
+                        lastZcomAsk = last.ask;
+                    }
+                    if (
+                        lastSession.xspring_prices &&
+                        lastSession.xspring_prices.length > 0
+                    ) {
+                        const last =
+                            lastSession.xspring_prices[
+                                lastSession.xspring_prices.length - 1
+                            ];
+                        lastXspringBid = last.bid;
+                        lastXspringAsk = last.ask;
+                    }
+                    if (
+                        lastSession.bitazza_prices &&
+                        lastSession.bitazza_prices.length > 0
+                    ) {
+                        // Filter for USDT (default or [USDT])
+                        const usdts = lastSession.bitazza_prices.filter(
+                            (p) => !p.note || !p.note.includes("USDC"),
+                        );
+                        // Filter for USDC ([USDC])
+                        const usdcs = lastSession.bitazza_prices.filter(
+                            (p) => p.note && p.note.includes("USDC"),
+                        );
+
+                        if (usdts.length > 0) {
+                            const last = usdts[usdts.length - 1];
+                            lastBitazzaBid = last.bid;
+                            lastBitazzaAsk = last.ask;
+                        }
+                        if (usdcs.length > 0) {
+                            const last = usdcs[usdcs.length - 1];
+                            lastBitazzaUsdcBid = last.bid;
+                            lastBitazzaUsdcAsk = last.ask;
+                        }
+                    }
+
+                    if (
+                        lastSession.fx_prices &&
+                        lastSession.fx_prices.length > 0
+                    ) {
+                        const last =
+                            lastSession.fx_prices[
+                                lastSession.fx_prices.length - 1
+                            ];
+                        lastFxRate = last.rate;
                     }
                 }
             });
@@ -1331,7 +1401,7 @@
             <input
                 type="text"
                 bind:value={fxRate}
-                placeholder="31.510"
+                placeholder={lastFxRate || "31.510"}
                 disabled={disabled || isSubmitting}
             />
         </div>
@@ -1460,7 +1530,7 @@
                             type="number"
                             step="0.001"
                             bind:value={bitazzaBid}
-                            placeholder="33.95"
+                            placeholder={lastBitazzaBid || "33.95"}
                             disabled={disabled || isSubmitting}
                             style="border-color: #dee2e6; width: 100%;"
                         />
@@ -1476,7 +1546,7 @@
                             type="number"
                             step="0.001"
                             bind:value={bitazzaAsk}
-                            placeholder="34.05"
+                            placeholder={lastBitazzaAsk || "34.05"}
                             disabled={disabled || isSubmitting}
                             style="border-color: #dee2e6; width: 100%;"
                         />
@@ -1514,7 +1584,7 @@
                             type="number"
                             step="0.001"
                             bind:value={bitazzaUsdcBid}
-                            placeholder="33.95"
+                            placeholder={lastBitazzaUsdcBid || "33.95"}
                             disabled={disabled || isSubmitting}
                             style="border-color: #dee2e6; width: 100%;"
                         />
@@ -1530,7 +1600,7 @@
                             type="number"
                             step="0.001"
                             bind:value={bitazzaUsdcAsk}
-                            placeholder="34.05"
+                            placeholder={lastBitazzaUsdcAsk || "34.05"}
                             disabled={disabled || isSubmitting}
                             style="border-color: #dee2e6; width: 100%;"
                         />
@@ -1615,7 +1685,7 @@
                     type="number"
                     step="0.001"
                     bind:value={zcomBid}
-                    placeholder="33.95"
+                    placeholder={lastZcomBid || "33.95"}
                     disabled={disabled || isSubmitting}
                 />
             </div>
@@ -1625,7 +1695,7 @@
                     type="number"
                     step="0.001"
                     bind:value={zcomAsk}
-                    placeholder="34.05"
+                    placeholder={lastZcomAsk || "34.05"}
                     disabled={disabled || isSubmitting}
                 />
             </div>
@@ -1702,7 +1772,7 @@
                     type="number"
                     step="0.001"
                     bind:value={xspringBid}
-                    placeholder="33.95"
+                    placeholder={lastXspringBid || "33.95"}
                     disabled={disabled || isSubmitting}
                 />
             </div>
@@ -1712,7 +1782,7 @@
                     type="number"
                     step="0.001"
                     bind:value={xspringAsk}
-                    placeholder="34.05"
+                    placeholder={lastXspringAsk || "34.05"}
                     disabled={disabled || isSubmitting}
                 />
             </div>

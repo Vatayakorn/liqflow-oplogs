@@ -708,7 +708,7 @@ export function groupSessionsByShift(sessions: OplogSession[]): Record<string, O
 export async function getLatestSessionData(): Promise<Partial<OplogSession> | null> {
     const { data, error } = await supabase
         .from('oplog_sessions')
-        .select('prefund_current, prefund_target, broker, trader, head, recorder')
+        .select('prefund_current, prefund_target, broker, trader, head, recorder, zcom_prices, xspring_prices, bitazza_prices, exchange_prices, fx_prices')
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
