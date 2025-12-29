@@ -19,6 +19,7 @@
         type ChatMessage,
     } from "$lib/api/chatlog";
     import AISummary from "$lib/components/AISummary.svelte";
+    import { BROKER_METADATA, EXCHANGES } from "$lib/config/tradingConfig";
 
     $: sessionId = $page.params.id;
 
@@ -949,239 +950,17 @@
                 </div>
             </div>
 
-            {#if session.fx_rate}
-                <div class="detail-card">
-                    <div class="card-header-with-time">
-                        <h3>FX Section</h3>
-                        {#if session.market_context?.fxFetchTime}
-                            <span class="header-time"
-                                >Fetched: {session.market_context
-                                    .fxFetchTime}</span
-                            >
-                        {/if}
-                    </div>
-                    <div class="detail-grid">
-                        <div class="detail-item">
-                            <span class="label">Spot Rate</span>
-                            <span class="value">{session.fx_rate} THB</span>
-                        </div>
-                        {#if session.fx_notes}
-                            <div
-                                class="detail-item"
-                                style="grid-column: span 2"
-                            >
-                                <span class="label">FX Notes</span>
-                                <span class="value">{session.fx_notes}</span>
-                            </div>
-                        {/if}
-                    </div>
-                </div>
-            {/if}
-
-            {#if session.btz_bid || session.btz_ask}
-                <div class="detail-card">
-                    <div class="card-header-with-time">
-                        <h3>Broker (BTZ/Maxbit)</h3>
-                        {#if session.market_context?.brokerFetchTime}
-                            <span class="header-time"
-                                >Fetched: {session.market_context
-                                    .brokerFetchTime}</span
-                            >
-                        {/if}
-                    </div>
-                    <div class="detail-grid">
-                        <div class="detail-item">
-                            <span class="label">BID</span>
-                            <span class="value">{session.btz_bid || "-"}</span>
-                        </div>
-                        <div class="detail-item">
-                            <span class="label">ASK</span>
-                            <span class="value">{session.btz_ask || "-"}</span>
-                        </div>
-                        {#if session.btz_notes}
-                            <div class="detail-item">
-                                <span class="label">Notes</span>
-                                <span class="value">{session.btz_notes}</span>
-                            </div>
-                        {/if}
-                    </div>
-                </div>
-            {/if}
-
-            {#if session.exchange1 || session.exchange2}
-                <div class="detail-card">
-                    <div class="card-header-with-time">
-                        <h3>Exchange Comparison</h3>
-                        {#if session.market_context?.exchangeFetchTime}
-                            <span class="header-time"
-                                >Fetched: {session.market_context
-                                    .exchangeFetchTime}</span
-                            >
-                        {/if}
-                    </div>
-                    <div class="detail-grid">
-                        <div class="detail-item">
-                            <span class="label"
-                                >{formatExchangeName(session.exchange1)}</span
-                            >
-                            <span class="value"
-                                >{session.exchange1_price || "-"}</span
-                            >
-                        </div>
-                        <div class="detail-item">
-                            <span class="label"
-                                >{formatExchangeName(session.exchange2)}</span
-                            >
-                            <span class="value"
-                                >{session.exchange2_price || "-"}</span
-                            >
-                        </div>
-                        <div class="detail-item">
-                            <span class="label">Difference</span>
-                            <span class="value"
-                                >{session.exchange_diff || "0.00"} ({formatExchangeName(
-                                    session.exchange_higher,
-                                )})</span
-                            >
-                        </div>
-                    </div>
-
-                    <!-- Historical Order Book Depth -->
-                    {#if bitkubBook || binanceBook}
-                        <div class="depth-preview-container">
-                            <div class="depth-preview-header">
-                                <svg
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    stroke-width="2"
-                                >
-                                    <path
-                                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                                    />
-                                </svg>
-                                <span>Snapshot Depth (Top 5)</span>
-                            </div>
-                            <div class="order-book-container">
-                                {#if bitkubBook}
-                                    <div class="order-book">
-                                        <div class="order-book-header bitkub">
-                                            Bitkub
-                                        </div>
-                                        <div class="order-book-columns">
-                                            <div class="order-book-column bids">
-                                                <div class="column-header">
-                                                    BID
-                                                </div>
-                                                {#each bitkubBook.bids.slice(0, 5) as bid, i}
-                                                    <div
-                                                        class="order-row bid"
-                                                        style="opacity: {1 -
-                                                            i * 0.15}"
-                                                    >
-                                                        <span class="price"
-                                                            >{bid.price.toFixed(
-                                                                2,
-                                                            )}</span
-                                                        >
-                                                        <span class="amount"
-                                                            >{bid.amount.toLocaleString()}</span
-                                                        >
-                                                    </div>
-                                                {/each}
-                                            </div>
-                                            <div class="order-book-column asks">
-                                                <div class="column-header">
-                                                    ASK
-                                                </div>
-                                                {#each bitkubBook.asks.slice(0, 5) as ask, i}
-                                                    <div
-                                                        class="order-row ask"
-                                                        style="opacity: {1 -
-                                                            i * 0.15}"
-                                                    >
-                                                        <span class="price"
-                                                            >{ask.price.toFixed(
-                                                                2,
-                                                            )}</span
-                                                        >
-                                                        <span class="amount"
-                                                            >{ask.amount.toLocaleString()}</span
-                                                        >
-                                                    </div>
-                                                {/each}
-                                            </div>
-                                        </div>
-                                    </div>
-                                {/if}
-
-                                {#if binanceBook}
-                                    <div class="order-book">
-                                        <div class="order-book-header binance">
-                                            BinanceTH
-                                        </div>
-                                        <div class="order-book-columns">
-                                            <div class="order-book-column bids">
-                                                <div class="column-header">
-                                                    BID
-                                                </div>
-                                                {#each binanceBook.bids.slice(0, 5) as bid, i}
-                                                    <div
-                                                        class="order-row bid"
-                                                        style="opacity: {1 -
-                                                            i * 0.15}"
-                                                    >
-                                                        <span class="price"
-                                                            >{bid.price.toFixed(
-                                                                2,
-                                                            )}</span
-                                                        >
-                                                        <span class="amount"
-                                                            >{bid.amount.toLocaleString()}</span
-                                                        >
-                                                    </div>
-                                                {/each}
-                                            </div>
-                                            <div class="order-book-column asks">
-                                                <div class="column-header">
-                                                    ASK
-                                                </div>
-                                                {#each binanceBook.asks.slice(0, 5) as ask, i}
-                                                    <div
-                                                        class="order-row ask"
-                                                        style="opacity: {1 -
-                                                            i * 0.15}"
-                                                    >
-                                                        <span class="price"
-                                                            >{ask.price.toFixed(
-                                                                2,
-                                                            )}</span
-                                                        >
-                                                        <span class="amount"
-                                                            >{ask.amount.toLocaleString()}</span
-                                                        >
-                                                    </div>
-                                                {/each}
-                                            </div>
-                                        </div>
-                                    </div>
-                                {/if}
-                            </div>
-                        </div>
-                    {/if}
-                    {#if session.exchange_notes}
-                        <div class="notes-box">
-                            <span class="label">Exchange Notes:</span>
-                            <p>{session.exchange_notes}</p>
-                        </div>
-                    {/if}
-                </div>
-            {/if}
-
             <!-- Broker Prices (Manual) -->
             {#if session.broker_prices && session.broker_prices.length > 0}
                 <div class="detail-card">
-                    <h3>📊 Broker Prices (USDT/THB)</h3>
+                    <div class="card-header-with-logo">
+                        <span
+                            class="header-logo"
+                            style="font-size: 1.5rem; display: flex; align-items: center; justify-content: center;"
+                            >⚖️</span
+                        >
+                        <h3>Broker Prices (Manual)</h3>
+                    </div>
                     <div class="broker-prices-list">
                         {#each session.broker_prices as entry}
                             <div class="broker-price-entry">
@@ -1189,18 +968,18 @@
                                     <span class="broker-entry-name"
                                         >{entry.broker}</span
                                     >
-                                    <span class="broker-entry-time">
-                                        {new Date(
+                                    <span class="broker-entry-time"
+                                        >{new Date(
                                             entry.timestamp,
-                                        ).toLocaleString("th-TH")}
-                                    </span>
+                                        ).toLocaleString("th-TH")}</span
+                                    >
                                 </div>
                                 <div class="broker-entry-values">
                                     <span class="bid-badge"
-                                        >BID: {entry.bid}</span
+                                        >BID {entry.bid}</span
                                     >
                                     <span class="ask-badge"
-                                        >ASK: {entry.ask}</span
+                                        >ASK {entry.ask}</span
                                     >
                                 </div>
                                 {#if entry.note}
@@ -1211,6 +990,578 @@
                             </div>
                         {/each}
                     </div>
+                </div>
+            {/if}
+
+            <!-- FX Section -->
+            {#if session.fx_rate || (session.fx_prices && session.fx_prices.length > 0)}
+                <div class="detail-card">
+                    <div class="card-header-with-logo">
+                        <img
+                            src={BROKER_METADATA.Google.logo}
+                            alt="Google"
+                            class="header-logo"
+                        />
+                        <h3>FX Section</h3>
+                        {#if session.market_context?.fxFetchTime}
+                            <span class="header-time"
+                                >Fetched: {session.market_context
+                                    .fxFetchTime}</span
+                            >
+                        {/if}
+                    </div>
+
+                    {#if session.fx_rate}
+                        <div class="detail-grid" style="margin-bottom: 1rem;">
+                            <div class="detail-item">
+                                <span class="label">Spot Rate</span>
+                                <span class="value">{session.fx_rate} THB</span>
+                            </div>
+                            {#if session.fx_notes}
+                                <div
+                                    class="detail-item"
+                                    style="grid-column: span 2"
+                                >
+                                    <span class="label">FX Notes</span>
+                                    <span class="value">{session.fx_notes}</span
+                                    >
+                                </div>
+                            {/if}
+                        </div>
+                    {/if}
+
+                    {#if session.fx_prices && session.fx_prices.length > 0}
+                        <div class="history-section-embedded">
+                            <h4>
+                                📋 Price History ({session.fx_prices.length})
+                            </h4>
+                            <div class="price-history-list">
+                                {#each session.fx_prices as entry}
+                                    <div class="price-history-entry">
+                                        <div class="entry-header">
+                                            <span class="entry-value"
+                                                >{entry.rate} THB</span
+                                            >
+                                            <span class="entry-time"
+                                                >{new Date(
+                                                    entry.timestamp,
+                                                ).toLocaleString("th-TH")}</span
+                                            >
+                                        </div>
+                                        {#if entry.note}
+                                            <div class="entry-note">
+                                                📝 {entry.note}
+                                            </div>
+                                        {/if}
+                                    </div>
+                                {/each}
+                            </div>
+                        </div>
+                    {/if}
+                </div>
+            {/if}
+
+            <!-- Broker (Bitazza) -->
+            {#if session.bitazza_prices && session.bitazza_prices.length > 0}
+                <div class="detail-card">
+                    <div class="card-header-with-logo">
+                        <img
+                            src={BROKER_METADATA.Bitazza.logo}
+                            alt="Bitazza"
+                            class="header-logo"
+                        />
+                        <h3>Broker (Bitazza)</h3>
+                    </div>
+
+                    <div class="history-section-embedded">
+                        <h4>
+                            📋 Price History ({session.bitazza_prices.length})
+                        </h4>
+                        <div class="price-history-list">
+                            {#each session.bitazza_prices as entry}
+                                <div class="price-history-entry">
+                                    <div class="entry-header">
+                                        <span class="entry-values">
+                                            <span class="bid-badge"
+                                                >BID: {entry.bid}</span
+                                            >
+                                            <span class="ask-badge"
+                                                >ASK: {entry.ask}</span
+                                            >
+                                        </span>
+                                        <span class="entry-time"
+                                            >{new Date(
+                                                entry.timestamp,
+                                            ).toLocaleString("th-TH")}</span
+                                        >
+                                    </div>
+                                    {#if entry.note}
+                                        <div class="entry-note">
+                                            📝 {entry.note}
+                                        </div>
+                                    {/if}
+                                </div>
+                            {/each}
+                        </div>
+                    </div>
+                </div>
+            {/if}
+
+            <!-- Broker (Zcom) -->
+            {#if session.zcom_prices && session.zcom_prices.length > 0}
+                <div class="detail-card">
+                    <div class="card-header-with-logo">
+                        <img
+                            src={BROKER_METADATA.Zcom.logo}
+                            alt="Zcom"
+                            class="header-logo"
+                            style="transform: scale(1.5);"
+                        />
+                        <h3>Broker (Zcom)</h3>
+                    </div>
+
+                    <div class="history-section-embedded">
+                        <h4>📋 Price History ({session.zcom_prices.length})</h4>
+                        <div class="price-history-list">
+                            {#each session.zcom_prices as entry}
+                                <div class="price-history-entry">
+                                    <div class="entry-header">
+                                        <span class="entry-values">
+                                            <span class="bid-badge"
+                                                >BID: {entry.bid}</span
+                                            >
+                                            <span class="ask-badge"
+                                                >ASK: {entry.ask}</span
+                                            >
+                                        </span>
+                                        <span class="entry-time"
+                                            >{new Date(
+                                                entry.timestamp,
+                                            ).toLocaleString("th-TH")}</span
+                                        >
+                                    </div>
+                                    {#if entry.note}
+                                        <div class="entry-note">
+                                            📝 {entry.note}
+                                        </div>
+                                    {/if}
+                                </div>
+                            {/each}
+                        </div>
+                    </div>
+                </div>
+            {/if}
+
+            <!-- Broker (Xspring) -->
+            {#if session.xspring_prices && session.xspring_prices.length > 0}
+                <div class="detail-card">
+                    <div class="card-header-with-logo">
+                        <img
+                            src={BROKER_METADATA.Xspring.logo}
+                            alt="Xspring"
+                            class="header-logo"
+                            style="transform: scale(1.4);"
+                        />
+                        <h3>Broker (Xspring)</h3>
+                    </div>
+
+                    <div class="history-section-embedded">
+                        <h4>
+                            📋 Price History ({session.xspring_prices.length})
+                        </h4>
+                        <div class="price-history-list">
+                            {#each session.xspring_prices as entry}
+                                <div class="price-history-entry">
+                                    <div class="entry-header">
+                                        <span class="entry-values">
+                                            <span class="bid-badge"
+                                                >BID: {entry.bid}</span
+                                            >
+                                            <span class="ask-badge"
+                                                >ASK: {entry.ask}</span
+                                            >
+                                        </span>
+                                        <span class="entry-time"
+                                            >{new Date(
+                                                entry.timestamp,
+                                            ).toLocaleString("th-TH")}</span
+                                        >
+                                    </div>
+                                    {#if entry.note}
+                                        <div class="entry-note">
+                                            📝 {entry.note}
+                                        </div>
+                                    {/if}
+                                </div>
+                            {/each}
+                        </div>
+                    </div>
+                </div>
+            {/if}
+
+            <!-- Broker (Maxbit) -->
+            {#if session.btz_bid || session.btz_ask || (session.maxbit_prices && session.maxbit_prices.length > 0)}
+                <div class="detail-card">
+                    <div class="card-header-with-logo">
+                        <img
+                            src={BROKER_METADATA.Maxbit.logo}
+                            alt="Maxbit"
+                            class="header-logo"
+                        />
+                        <h3>Broker (Maxbit)</h3>
+                        {#if session.market_context?.brokerFetchTime}
+                            <span class="header-time"
+                                >Fetched: {session.market_context
+                                    .brokerFetchTime}</span
+                            >
+                        {/if}
+                    </div>
+
+                    <div class="detail-grid" style="margin-bottom: 1rem;">
+                        <div class="detail-item">
+                            <span class="label">USDT BID</span>
+                            <span class="value">{session.btz_bid || "-"}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="label">USDT ASK</span>
+                            <span class="value">{session.btz_ask || "-"}</span>
+                        </div>
+                        {#if session.btz_usdc_bid || session.btz_usdc_ask}
+                            <div class="detail-item">
+                                <span class="label">USDC BID</span>
+                                <span class="value"
+                                    >{session.btz_usdc_bid || "-"}</span
+                                >
+                            </div>
+                            <div class="detail-item">
+                                <span class="label">USDC ASK</span>
+                                <span class="value"
+                                    >{session.btz_usdc_ask || "-"}</span
+                                >
+                            </div>
+                        {/if}
+                        {#if session.btz_notes}
+                            <div
+                                class="detail-item"
+                                style="grid-column: span 2"
+                            >
+                                <span class="label">Notes</span>
+                                <span class="value">{session.btz_notes}</span>
+                            </div>
+                        {/if}
+                    </div>
+
+                    {#if session.maxbit_prices && session.maxbit_prices.length > 0}
+                        <div class="history-section-embedded">
+                            <h4>
+                                📋 Price History ({session.maxbit_prices
+                                    .length})
+                            </h4>
+                            <div class="price-history-list">
+                                {#each session.maxbit_prices as entry}
+                                    <div class="price-history-entry">
+                                        <div class="entry-header">
+                                            <span class="entry-values">
+                                                <span class="bid-badge"
+                                                    >BID: {entry.bid}</span
+                                                >
+                                                <span class="ask-badge"
+                                                    >ASK: {entry.ask}</span
+                                                >
+                                            </span>
+                                            <span class="entry-time"
+                                                >{new Date(
+                                                    entry.timestamp,
+                                                ).toLocaleString("th-TH")}</span
+                                            >
+                                        </div>
+                                        {#if entry.note}
+                                            <div class="entry-note">
+                                                📝 {entry.note}
+                                            </div>
+                                        {/if}
+                                    </div>
+                                {/each}
+                            </div>
+                        </div>
+                    {/if}
+                </div>
+            {/if}
+
+            <!-- Exchange Comparison -->
+            {#if session.exchange1 || session.exchange2 || (session.exchange_prices && session.exchange_prices.length > 0)}
+                <div class="detail-card">
+                    <div class="card-header-with-logo">
+                        <div class="header-logos">
+                            {#if session.exchange1 && BROKER_METADATA[session.exchange1]}
+                                <img
+                                    src={BROKER_METADATA[session.exchange1]
+                                        .logo}
+                                    alt={session.exchange1}
+                                    class="header-logo-small"
+                                />
+                            {/if}
+                            {#if session.exchange2 && BROKER_METADATA[session.exchange2]}
+                                <img
+                                    src={BROKER_METADATA[session.exchange2]
+                                        .logo}
+                                    alt={session.exchange2}
+                                    class="header-logo-small"
+                                />
+                            {/if}
+                        </div>
+                        <h3>Exchange Comparison</h3>
+                        {#if session.market_context?.exchangeFetchTime}
+                            <span class="header-time"
+                                >Fetched: {session.market_context
+                                    .exchangeFetchTime}</span
+                            >
+                        {/if}
+                    </div>
+
+                    {#if session.exchange1 || session.exchange2}
+                        <div class="detail-grid">
+                            <div class="detail-item">
+                                <span class="label"
+                                    >{formatExchangeName(
+                                        session.exchange1,
+                                    )}</span
+                                >
+                                <span class="value"
+                                    >{session.exchange1_price || "-"}</span
+                                >
+                            </div>
+                            <div class="detail-item">
+                                <span class="label"
+                                    >{formatExchangeName(
+                                        session.exchange2,
+                                    )}</span
+                                >
+                                <span class="value"
+                                    >{session.exchange2_price || "-"}</span
+                                >
+                            </div>
+                            <div class="detail-item">
+                                <span class="label">Difference</span>
+                                <span class="value"
+                                    >{session.exchange_diff || "0.00"} ({formatExchangeName(
+                                        session.exchange_higher,
+                                    )})</span
+                                >
+                            </div>
+                        </div>
+
+                        <!-- Historical Order Book Depth -->
+                        {#if bitkubBook || binanceBook}
+                            <div
+                                class="depth-preview-container"
+                                style="margin-top: 1rem;"
+                            >
+                                <div class="depth-preview-header">
+                                    <svg
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                    >
+                                        <path
+                                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                                        />
+                                    </svg>
+                                    <span>Snapshot Depth (Top 5)</span>
+                                </div>
+                                <div class="order-book-container">
+                                    {#if bitkubBook}
+                                        <div class="order-book">
+                                            <div
+                                                class="order-book-header bitkub"
+                                            >
+                                                Bitkub
+                                            </div>
+                                            <div class="order-book-columns">
+                                                <div
+                                                    class="order-book-column bids"
+                                                >
+                                                    <div class="column-header">
+                                                        BID
+                                                    </div>
+                                                    {#each bitkubBook.bids.slice(0, 5) as bid, i}
+                                                        <div
+                                                            class="order-row bid"
+                                                            style="opacity: {1 -
+                                                                i * 0.15}"
+                                                        >
+                                                            <span class="price"
+                                                                >{bid.price.toFixed(
+                                                                    2,
+                                                                )}</span
+                                                            >
+                                                            <span class="amount"
+                                                                >{bid.amount.toLocaleString()}</span
+                                                            >
+                                                        </div>
+                                                    {/each}
+                                                </div>
+                                                <div
+                                                    class="order-book-column asks"
+                                                >
+                                                    <div class="column-header">
+                                                        ASK
+                                                    </div>
+                                                    {#each bitkubBook.asks.slice(0, 5) as ask, i}
+                                                        <div
+                                                            class="order-row ask"
+                                                            style="opacity: {1 -
+                                                                i * 0.15}"
+                                                        >
+                                                            <span class="price"
+                                                                >{ask.price.toFixed(
+                                                                    2,
+                                                                )}</span
+                                                            >
+                                                            <span class="amount"
+                                                                >{ask.amount.toLocaleString()}</span
+                                                            >
+                                                        </div>
+                                                    {/each}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    {/if}
+
+                                    {#if binanceBook}
+                                        <div class="order-book">
+                                            <div
+                                                class="order-book-header binance"
+                                            >
+                                                BinanceTH
+                                            </div>
+                                            <div class="order-book-columns">
+                                                <div
+                                                    class="order-book-column bids"
+                                                >
+                                                    <div class="column-header">
+                                                        BID
+                                                    </div>
+                                                    {#each binanceBook.bids.slice(0, 5) as bid, i}
+                                                        <div
+                                                            class="order-row bid"
+                                                            style="opacity: {1 -
+                                                                i * 0.15}"
+                                                        >
+                                                            <span class="price"
+                                                                >{bid.price.toFixed(
+                                                                    2,
+                                                                )}</span
+                                                            >
+                                                            <span class="amount"
+                                                                >{bid.amount.toLocaleString()}</span
+                                                            >
+                                                        </div>
+                                                    {/each}
+                                                </div>
+                                                <div
+                                                    class="order-book-column asks"
+                                                >
+                                                    <div class="column-header">
+                                                        ASK
+                                                    </div>
+                                                    {#each binanceBook.asks.slice(0, 5) as ask, i}
+                                                        <div
+                                                            class="order-row ask"
+                                                            style="opacity: {1 -
+                                                                i * 0.15}"
+                                                        >
+                                                            <span class="price"
+                                                                >{ask.price.toFixed(
+                                                                    2,
+                                                                )}</span
+                                                            >
+                                                            <span class="amount"
+                                                                >{ask.amount.toLocaleString()}</span
+                                                            >
+                                                        </div>
+                                                    {/each}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    {/if}
+                                </div>
+                            </div>
+                        {/if}
+
+                        {#if session.exchange_notes}
+                            <div class="notes-box" style="margin-top: 1rem;">
+                                <span class="label">Exchange Notes:</span>
+                                <p>{session.exchange_notes}</p>
+                            </div>
+                        {/if}
+                    {/if}
+
+                    {#if session.exchange_prices && session.exchange_prices.length > 0}
+                        <div
+                            class="history-section-embedded"
+                            style="margin-top: 1.5rem;"
+                        >
+                            <h4>
+                                📋 Price History ({session.exchange_prices
+                                    .length})
+                            </h4>
+                            <div class="price-history-list">
+                                {#each session.exchange_prices as entry}
+                                    <div
+                                        class="price-history-entry exchange-entry"
+                                    >
+                                        <div class="entry-header">
+                                            <span class="exchange-comparison"
+                                                >{entry.exchange1} vs {entry.exchange2}</span
+                                            >
+                                            <span class="entry-time"
+                                                >{new Date(
+                                                    entry.timestamp,
+                                                ).toLocaleString("th-TH")}</span
+                                            >
+                                        </div>
+                                        <div class="exchange-details">
+                                            <div class="exchange-row">
+                                                <span class="exchange-name"
+                                                    >{entry.exchange1}:</span
+                                                >
+                                                <span class="bid-badge"
+                                                    >BID {entry.exchange1Bid}</span
+                                                >
+                                                <span class="ask-badge"
+                                                    >ASK {entry.exchange1Ask}</span
+                                                >
+                                            </div>
+                                            <div class="exchange-row">
+                                                <span class="exchange-name"
+                                                    >{entry.exchange2}:</span
+                                                >
+                                                <span class="bid-badge"
+                                                    >BID {entry.exchange2Bid}</span
+                                                >
+                                                <span class="ask-badge"
+                                                    >ASK {entry.exchange2Ask}</span
+                                                >
+                                            </div>
+                                            {#if entry.diff}
+                                                <div class="exchange-diff">
+                                                    Diff: {entry.diff} | Higher:
+                                                    {entry.higher}
+                                                </div>
+                                            {/if}
+                                        </div>
+                                        {#if entry.note}
+                                            <div class="entry-note">
+                                                📝 {entry.note}
+                                            </div>
+                                        {/if}
+                                    </div>
+                                {/each}
+                            </div>
+                        </div>
+                    {/if}
                 </div>
             {/if}
 
@@ -2325,6 +2676,183 @@
         margin-top: 0.25rem;
         padding: 0.25rem 0.5rem;
         background: rgba(0, 0, 0, 0.03);
+        border-radius: 4px;
+    }
+
+    /* Premium Logo Headers */
+    .card-header-with-logo {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 1.25rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid var(--color-border-light);
+    }
+
+    .header-logo {
+        width: 32px;
+        height: 32px;
+        object-fit: contain;
+        border-radius: 6px;
+    }
+
+    .header-logos {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .header-logo-small {
+        width: 24px;
+        height: 24px;
+        object-fit: contain;
+        border-radius: 4px;
+    }
+
+    .card-header-with-logo h3 {
+        margin: 0;
+        font-size: 1.125rem;
+        background: none;
+        padding: 0;
+    }
+
+    .card-header-with-logo .header-time {
+        margin-left: auto;
+        font-size: 0.75rem;
+        color: var(--color-text-tertiary);
+        font-weight: 500;
+        background: rgba(0, 0, 0, 0.04);
+        padding: 0.25rem 0.625rem;
+        border-radius: 100px;
+    }
+
+    /* Embedded History Sections */
+    .history-section-embedded {
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px dashed var(--color-border-light);
+    }
+
+    .history-section-embedded h4 {
+        font-size: 0.8125rem;
+        color: var(--color-text-tertiary);
+        text-transform: uppercase;
+        letter-spacing: 0.025em;
+        margin: 0 0 0.75rem 0;
+        font-weight: 700;
+    }
+
+    /* Revised Price History Styles */
+    .price-history-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        max-height: 250px;
+        overflow-y: auto;
+        padding-right: 4px;
+    }
+
+    /* Custom scrollbar for price history */
+    .price-history-list::-webkit-scrollbar {
+        width: 4px;
+    }
+    .price-history-list::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    .price-history-list::-webkit-scrollbar-thumb {
+        background: var(--color-border-light);
+        border-radius: 10px;
+    }
+
+    .price-history-entry {
+        padding: 0.625rem 0.75rem;
+        background: rgba(0, 0, 0, 0.02);
+        border-radius: 8px;
+        border: 1px solid rgba(0, 0, 0, 0.04);
+        transition: all 0.2s ease;
+    }
+
+    .price-history-entry:hover {
+        background: rgba(0, 0, 0, 0.03);
+        border-color: rgba(0, 0, 0, 0.08);
+    }
+
+    .entry-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .entry-value {
+        font-weight: 700;
+        font-size: 0.9375rem;
+        color: var(--color-text);
+    }
+
+    .entry-values {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .entry-time {
+        font-size: 0.6875rem;
+        color: var(--color-text-tertiary);
+        font-family: var(--font-family-mono);
+    }
+
+    .entry-note {
+        font-size: 0.75rem;
+        color: var(--color-text-secondary);
+        margin-top: 0.375rem;
+        padding: 0.25rem 0.5rem;
+        background: white;
+        border-radius: 4px;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    }
+
+    .exchange-entry .entry-header {
+        margin-bottom: 0.5rem;
+    }
+
+    .exchange-comparison {
+        font-weight: 700;
+        font-size: 0.8125rem;
+        color: var(--color-text);
+        background: rgba(0, 0, 0, 0.05);
+        padding: 0.125rem 0.5rem;
+        border-radius: 4px;
+    }
+
+    .exchange-details {
+        display: flex;
+        flex-direction: column;
+        gap: 0.375rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .exchange-row {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.75rem;
+    }
+
+    .exchange-name {
+        font-weight: 600;
+        min-width: 65px;
+        color: var(--color-text-secondary);
+    }
+
+    .exchange-diff {
+        font-size: 0.6875rem;
+        color: var(--color-text-tertiary);
+        margin-top: 0.25rem;
+        padding: 0.125rem 0.5rem;
+        background: rgba(0, 0, 0, 0.03);
+        display: inline-block;
         border-radius: 4px;
     }
 </style>

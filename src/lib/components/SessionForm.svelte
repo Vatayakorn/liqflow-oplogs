@@ -941,17 +941,13 @@
         }
     }
 
-    // Reactive: Start/stop auto-save when toggle changes
+    // Reactive: Start/stop or restart auto-save (Merged to prevent double-init at start)
     $: if (autoSaveEnabled && !isEditing) {
+        // Track autoSaveInterval so it restarts if changed
+        autoSaveInterval;
         startAutoSave();
     } else {
         stopAutoSave();
-    }
-
-    // Reactive: Restart auto-save when interval changes (only if enabled)
-    $: if (autoSaveEnabled && !isEditing && autoSaveInterval) {
-        stopAutoSave();
-        startAutoSave();
     }
 
     onDestroy(() => {
