@@ -115,6 +115,7 @@ export interface FxPriceEntry {
     note?: string;
     timestamp: string; // ISO datetime
     isEditingTimestamp?: boolean;
+    isEditingNote?: boolean;
 }
 
 export interface MaxbitPriceEntry {
@@ -124,6 +125,7 @@ export interface MaxbitPriceEntry {
     note?: string;
     timestamp: string; // ISO datetime
     isEditingTimestamp?: boolean;
+    isEditingNote?: boolean;
 }
 
 export interface ExchangePriceEntry {
@@ -139,6 +141,7 @@ export interface ExchangePriceEntry {
     note?: string;
     timestamp: string; // ISO datetime
     isEditingTimestamp?: boolean;
+    isEditingNote?: boolean;
 }
 
 export interface CreateSessionPayload {

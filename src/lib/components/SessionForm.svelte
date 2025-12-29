@@ -45,6 +45,7 @@
     } from "$lib/api/marketData";
     import { fetchTodayOtcTransactions } from "$lib/api/otcApi";
     import { toast } from "$lib/stores/toast";
+    import { fetchLatestMarketPrices } from "$lib/api/autoSave";
 
     export let disabled = false;
     export let initialData: any = null;
@@ -57,6 +58,14 @@
     // In edit mode, always manual (no live updates)
     let priceMode: "live" | "manual" = "live";
     $: effectivePriceMode = isEditing ? "manual" : priceMode;
+
+    // === Auto-Save Price Feature ===
+    // Automatically saves prices from market_data at configurable intervals
+    let autoSaveEnabled = true; // Default ON
+    let autoSaveInterval = 1; // minutes (default: 1 minute)
+    let autoSaveTimer: ReturnType<typeof setInterval> | null = null;
+    let autoSaveCount = 0; // Track number of auto-saved entries
+    const AUTO_SAVE_INTERVALS = [1, 2, 5, 10, 15, 30]; // Available interval options
 
     // Initialize only if initialData changes or on start
     onMount(() => {
@@ -330,6 +339,24 @@
         );
     }
 
+    function toggleEditFxNote(id: string) {
+        fxPrices = fxPrices.map((p) =>
+            p.id === id ? { ...p, isEditingNote: !p.isEditingNote } : p,
+        );
+    }
+
+    function handleFxNoteChange(id: string, newNote: string) {
+        fxPrices = fxPrices.map((p) =>
+            p.id === id
+                ? {
+                      ...p,
+                      note: newNote || undefined,
+                      isEditingNote: false,
+                  }
+                : p,
+        );
+    }
+
     // Save current Maxbit BID/ASK with note
     function saveMaxbitPrice() {
         if (!btzBid || !btzAsk) {
@@ -366,6 +393,24 @@
                       ...p,
                       timestamp: new Date(newTimestamp).toISOString(),
                       isEditingTimestamp: false,
+                  }
+                : p,
+        );
+    }
+
+    function toggleEditMaxbitNote(id: string) {
+        maxbitPrices = maxbitPrices.map((p) =>
+            p.id === id ? { ...p, isEditingNote: !p.isEditingNote } : p,
+        );
+    }
+
+    function handleMaxbitNoteChange(id: string, newNote: string) {
+        maxbitPrices = maxbitPrices.map((p) =>
+            p.id === id
+                ? {
+                      ...p,
+                      note: newNote || undefined,
+                      isEditingNote: false,
                   }
                 : p,
         );
@@ -612,6 +657,24 @@
         );
     }
 
+    function toggleEditExchangeNote(id: string) {
+        exchangePrices = exchangePrices.map((p) =>
+            p.id === id ? { ...p, isEditingNote: !p.isEditingNote } : p,
+        );
+    }
+
+    function handleExchangeNoteChange(id: string, newNote: string) {
+        exchangePrices = exchangePrices.map((p) =>
+            p.id === id
+                ? {
+                      ...p,
+                      note: newNote || undefined,
+                      isEditingNote: false,
+                  }
+                : p,
+        );
+    }
+
     function formatBrokerTimestamp(isoStr: string): string {
         const date = new Date(isoStr);
         return date.toLocaleString("th-TH", {
@@ -774,11 +837,130 @@
         }
     });
 
+    // === Auto-Save Functions ===
+    function startAutoSave() {
+        if (autoSaveTimer) clearInterval(autoSaveTimer);
+        // Initial save immediately, then every interval
+        autoSavePrices();
+        autoSaveTimer = setInterval(
+            () => {
+                autoSavePrices();
+            },
+            autoSaveInterval * 60 * 1000,
+        );
+    }
+
+    async function autoSavePrices() {
+        try {
+            const prices = await fetchLatestMarketPrices();
+            const timestamp = new Date().toISOString();
+
+            // Auto-save FX if available
+            if (prices.fx) {
+                const entry: FxPriceEntry = {
+                    id: crypto.randomUUID(),
+                    rate: prices.fx.rate.toFixed(3),
+                    note: "[Auto]",
+                    timestamp,
+                };
+                fxPrices = [...fxPrices, entry];
+                fxRate = prices.fx.rate.toFixed(3);
+                fxFetchTime = getCurrentTimeStr();
+            }
+
+            // Auto-save Maxbit if available
+            if (prices.maxbit) {
+                const entry: MaxbitPriceEntry = {
+                    id: crypto.randomUUID(),
+                    bid: prices.maxbit.bid.toFixed(3),
+                    ask: prices.maxbit.ask.toFixed(3),
+                    note: "[Auto]",
+                    timestamp,
+                };
+                maxbitPrices = [...maxbitPrices, entry];
+                btzBid = prices.maxbit.bid.toFixed(3);
+                btzAsk = prices.maxbit.ask.toFixed(3);
+                brokerFetchTime = getCurrentTimeStr();
+            }
+
+            // Auto-save Exchange (Bitkub + BinanceTH) if available
+            if (prices.bitkub || prices.binanceTH) {
+                const newExchange1Bid =
+                    prices.bitkub?.bid.toFixed(2) || exchange1Bid;
+                const newExchange1Ask =
+                    prices.bitkub?.ask.toFixed(2) || exchange1Ask;
+                const newExchange2Bid =
+                    prices.binanceTH?.bid.toFixed(2) || exchange2Bid;
+                const newExchange2Ask =
+                    prices.binanceTH?.ask.toFixed(2) || exchange2Ask;
+
+                // Calculate diff
+                const bid1 = parseFloat(newExchange1Bid);
+                const bid2 = parseFloat(newExchange2Bid);
+                let diff = "";
+                let higher = "";
+                if (bid1 && bid2) {
+                    const diffValue = Math.abs(bid1 - bid2).toFixed(2);
+                    diff = diffValue;
+                    higher = bid1 > bid2 ? exchange1 : exchange2;
+                }
+
+                const entry: ExchangePriceEntry = {
+                    id: crypto.randomUUID(),
+                    exchange1,
+                    exchange1Bid: newExchange1Bid,
+                    exchange1Ask: newExchange1Ask,
+                    exchange2,
+                    exchange2Bid: newExchange2Bid,
+                    exchange2Ask: newExchange2Ask,
+                    diff,
+                    higher,
+                    note: "[Auto]",
+                    timestamp,
+                };
+                exchangePrices = [...exchangePrices, entry];
+                exchange1Bid = newExchange1Bid;
+                exchange1Ask = newExchange1Ask;
+                exchange2Bid = newExchange2Bid;
+                exchange2Ask = newExchange2Ask;
+                exchangeDiff = diff;
+                exchangeHigher = higher;
+                exchangeFetchTime = getCurrentTimeStr();
+            }
+
+            autoSaveCount++;
+        } catch (error) {
+            console.error("[AutoSave] Error fetching prices:", error);
+        }
+    }
+
+    function stopAutoSave() {
+        if (autoSaveTimer) {
+            clearInterval(autoSaveTimer);
+            autoSaveTimer = null;
+        }
+    }
+
+    // Reactive: Start/stop auto-save when toggle changes
+    $: if (autoSaveEnabled && !isEditing) {
+        startAutoSave();
+    } else {
+        stopAutoSave();
+    }
+
+    // Reactive: Restart auto-save when interval changes (only if enabled)
+    $: if (autoSaveEnabled && !isEditing && autoSaveInterval) {
+        stopAutoSave();
+        startAutoSave();
+    }
+
     onDestroy(() => {
         // Only disconnect if we connected
         if (!initialData) {
             marketFeed.disconnect();
         }
+        // Always clean up auto-save timer
+        stopAutoSave();
     });
 
     // Reactive: Update UI when live data arrives (only when NOT editing AND in live mode)
@@ -1486,6 +1668,31 @@
                     </button>
                 </div>
             </div>
+
+            <!-- Auto-Save Controls -->
+            <div class="auto-save-controls">
+                <label class="auto-save-toggle">
+                    <input type="checkbox" bind:checked={autoSaveEnabled} />
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-label">Auto-Save Prices</span>
+                </label>
+
+                {#if autoSaveEnabled}
+                    <div class="interval-selector">
+                        <label>Every</label>
+                        <select bind:value={autoSaveInterval}>
+                            {#each AUTO_SAVE_INTERVALS as interval}
+                                <option value={interval}>{interval} min</option>
+                            {/each}
+                        </select>
+                        {#if autoSaveCount > 0}
+                            <span class="auto-save-count"
+                                >({autoSaveCount} saved)</span
+                            >
+                        {/if}
+                    </div>
+                {/if}
+            </div>
         {/if}
     </div>
 
@@ -1550,7 +1757,13 @@
 
         <!-- FX Price History -->
         {#if fxPrices.length > 0}
-            <div class="price-history-list">
+            <div
+                class="price-history-list"
+                class:scrollable={fxPrices.length > 5}
+                class:compact={fxPrices.length > 5}
+                class:ultra-compact={fxPrices.length > 10}
+                class:micro-compact={fxPrices.length > 20}
+            >
                 <div class="history-header">
                     📋 Price History ({fxPrices.length})
                 </div>
@@ -1593,9 +1806,38 @@
                                 </span>
                             {/if}
                         </div>
-                        {#if entry.note}
-                            <div class="history-note">📝 {entry.note}</div>
-                        {/if}
+                        <div class="history-note">
+                            {#if entry.isEditingNote}
+                                <input
+                                    type="text"
+                                    value={entry.note || ""}
+                                    on:change={(e) =>
+                                        handleFxNoteChange(
+                                            entry.id,
+                                            e.currentTarget.value,
+                                        )}
+                                    on:blur={() => toggleEditFxNote(entry.id)}
+                                    on:keydown={(e) => {
+                                        if (e.key === "Enter") {
+                                            handleFxNoteChange(
+                                                entry.id,
+                                                e.currentTarget.value,
+                                            );
+                                        }
+                                    }}
+                                    class="note-edit-input"
+                                    placeholder="Add note..."
+                                />
+                            {:else}
+                                <span
+                                    on:click={() => toggleEditFxNote(entry.id)}
+                                    style="cursor: pointer;"
+                                    title="Click to edit note"
+                                >
+                                    📝 {entry.note || "(add note)"}
+                                </span>
+                            {/if}
+                        </div>
                     </div>
                 {/each}
             </div>
@@ -2125,7 +2367,13 @@
 
         <!-- Maxbit Price History -->
         {#if maxbitPrices.length > 0}
-            <div class="price-history-list">
+            <div
+                class="price-history-list"
+                class:scrollable={maxbitPrices.length > 5}
+                class:compact={maxbitPrices.length > 5}
+                class:ultra-compact={maxbitPrices.length > 10}
+                class:micro-compact={maxbitPrices.length > 20}
+            >
                 <div class="history-header">
                     📋 Price History ({maxbitPrices.length})
                 </div>
@@ -2171,9 +2419,40 @@
                                 </span>
                             {/if}
                         </div>
-                        {#if entry.note}
-                            <div class="history-note">📝 {entry.note}</div>
-                        {/if}
+                        <div class="history-note">
+                            {#if entry.isEditingNote}
+                                <input
+                                    type="text"
+                                    value={entry.note || ""}
+                                    on:change={(e) =>
+                                        handleMaxbitNoteChange(
+                                            entry.id,
+                                            e.currentTarget.value,
+                                        )}
+                                    on:blur={() =>
+                                        toggleEditMaxbitNote(entry.id)}
+                                    on:keydown={(e) => {
+                                        if (e.key === "Enter") {
+                                            handleMaxbitNoteChange(
+                                                entry.id,
+                                                e.currentTarget.value,
+                                            );
+                                        }
+                                    }}
+                                    class="note-edit-input"
+                                    placeholder="Add note..."
+                                />
+                            {:else}
+                                <span
+                                    on:click={() =>
+                                        toggleEditMaxbitNote(entry.id)}
+                                    style="cursor: pointer;"
+                                    title="Click to edit note"
+                                >
+                                    📝 {entry.note || "(add note)"}
+                                </span>
+                            {/if}
+                        </div>
                     </div>
                 {/each}
             </div>
@@ -2404,7 +2683,13 @@
 
         <!-- Exchange Price History -->
         {#if exchangePrices.length > 0}
-            <div class="price-history-list">
+            <div
+                class="price-history-list"
+                class:scrollable={exchangePrices.length > 5}
+                class:compact={exchangePrices.length > 5}
+                class:ultra-compact={exchangePrices.length > 10}
+                class:micro-compact={exchangePrices.length > 20}
+            >
                 <div class="history-header">
                     📋 Price History ({exchangePrices.length})
                 </div>
@@ -2478,9 +2763,40 @@
                                 </span>
                             {/if}
                         </div>
-                        {#if entry.note}
-                            <div class="history-note">📝 {entry.note}</div>
-                        {/if}
+                        <div class="history-note">
+                            {#if entry.isEditingNote}
+                                <input
+                                    type="text"
+                                    value={entry.note || ""}
+                                    on:change={(e) =>
+                                        handleExchangeNoteChange(
+                                            entry.id,
+                                            e.currentTarget.value,
+                                        )}
+                                    on:blur={() =>
+                                        toggleEditExchangeNote(entry.id)}
+                                    on:keydown={(e) => {
+                                        if (e.key === "Enter") {
+                                            handleExchangeNoteChange(
+                                                entry.id,
+                                                e.currentTarget.value,
+                                            );
+                                        }
+                                    }}
+                                    class="note-edit-input"
+                                    placeholder="Add note..."
+                                />
+                            {:else}
+                                <span
+                                    on:click={() =>
+                                        toggleEditExchangeNote(entry.id)}
+                                    style="cursor: pointer;"
+                                    title="Click to edit note"
+                                >
+                                    📝 {entry.note || "(add note)"}
+                                </span>
+                            {/if}
+                        </div>
                     </div>
                 {/each}
             </div>
@@ -2937,6 +3253,89 @@
         100% {
             box-shadow: 0 0 0 0 rgba(52, 199, 89, 0);
         }
+    }
+
+    /* Auto-Save Controls */
+    .auto-save-controls {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-top: 0.75rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid var(--border-color);
+    }
+
+    .auto-save-toggle {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .auto-save-toggle input[type="checkbox"] {
+        width: 36px;
+        height: 20px;
+        appearance: none;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        position: relative;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .auto-save-toggle input[type="checkbox"]:checked {
+        background: #34c759;
+    }
+
+    .auto-save-toggle input[type="checkbox"]::before {
+        content: "";
+        position: absolute;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: white;
+        top: 2px;
+        left: 2px;
+        transition: transform 0.2s;
+    }
+
+    .auto-save-toggle input[type="checkbox"]:checked::before {
+        transform: translateX(16px);
+    }
+
+    .toggle-label {
+        font-size: 0.8125rem;
+        font-weight: 500;
+        color: var(--color-text);
+    }
+
+    .toggle-slider {
+        display: none;
+    }
+
+    .interval-selector {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.75rem;
+        color: var(--color-text-secondary);
+    }
+
+    .interval-selector select {
+        padding: 0.25rem 0.5rem;
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid var(--border-color);
+        color: var(--color-text);
+        font-size: 0.75rem;
+        cursor: pointer;
+    }
+
+    .auto-save-count {
+        font-size: 0.6875rem;
+        color: #34c759;
+        font-weight: 500;
     }
 
     .no-snapshot-msg {
@@ -3877,6 +4276,121 @@
         border: 1px solid var(--color-border-light);
         border-radius: 8px;
         margin-bottom: 0.375rem;
+        transition: all 0.2s ease;
+    }
+
+    /* Scrollable container for many items */
+    .price-history-list.scrollable {
+        max-height: 280px;
+        overflow-y: auto;
+        padding-right: 0.25rem;
+    }
+
+    /* Compact mode for >5 entries */
+    .price-history-list.compact .price-history-card {
+        padding: 0.25rem 0.4rem;
+        margin-bottom: 0.15rem;
+    }
+
+    .price-history-list.compact .history-value {
+        font-size: 0.75rem;
+    }
+
+    .price-history-list.compact .history-timestamp,
+    .price-history-list.compact .history-note {
+        font-size: 0.5625rem;
+    }
+
+    /* Ultra-compact mode for >10 entries */
+    .price-history-list.ultra-compact .price-history-card {
+        padding: 0.15rem 0.3rem;
+        margin-bottom: 0.1rem;
+        border-radius: 3px;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .price-history-list.ultra-compact .history-value {
+        font-size: 0.625rem;
+    }
+
+    .price-history-list.ultra-compact .history-timestamp {
+        display: inline;
+        font-size: 0.5rem;
+        opacity: 0.7;
+    }
+
+    .price-history-list.ultra-compact .history-card-header {
+        flex-wrap: nowrap;
+        gap: 0.2rem;
+    }
+
+    .price-history-list.ultra-compact .history-note {
+        font-size: 0.5rem;
+        margin-top: 0;
+        padding: 0;
+        background: none;
+    }
+
+    .price-history-list.ultra-compact .delete-btn {
+        padding: 0.1rem 0.2rem;
+        font-size: 0.5rem;
+    }
+
+    /* Micro-compact mode for >20 entries - single line per entry */
+    .price-history-list.micro-compact .price-history-card {
+        padding: 0.1rem 0.25rem;
+        margin-bottom: 0.05rem;
+        border-radius: 2px;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        border: none;
+        background: rgba(255, 255, 255, 0.03);
+    }
+
+    .price-history-list.micro-compact .history-value {
+        font-size: 0.5625rem;
+        font-weight: 600;
+    }
+
+    .price-history-list.micro-compact .history-values {
+        gap: 0.25rem;
+        font-size: 0.5rem;
+    }
+
+    .price-history-list.micro-compact .history-timestamp {
+        font-size: 0.4375rem;
+        opacity: 0.6;
+    }
+
+    .price-history-list.micro-compact .history-note {
+        display: inline;
+        font-size: 0.4375rem;
+        margin-left: 0.25rem;
+        opacity: 0.7;
+    }
+
+    .price-history-list.micro-compact .history-note span {
+        font-size: 0.4375rem;
+    }
+
+    .price-history-list.micro-compact .history-note input {
+        font-size: 0.4375rem;
+        padding: 1px 3px;
+        min-width: 80px;
+    }
+
+    .price-history-list.micro-compact .delete-btn {
+        padding: 0 0.15rem;
+        font-size: 0.4375rem;
+        opacity: 0.5;
+    }
+
+    .price-history-list.micro-compact .history-card-header {
+        width: 100%;
     }
 
     .history-card-header {
@@ -3919,5 +4433,26 @@
         background: white;
         width: 100%;
         margin-top: 4px;
+    }
+
+    .note-edit-input {
+        font-size: 0.6875rem;
+        padding: 2px 6px;
+        border: 1px solid var(--color-border);
+        border-radius: 4px;
+        background: white;
+        color: var(--color-text);
+        width: 100%;
+        min-width: 120px;
+    }
+
+    .history-note span {
+        cursor: pointer;
+        opacity: 0.8;
+    }
+
+    .history-note span:hover {
+        opacity: 1;
+        text-decoration: underline;
     }
 </style>
