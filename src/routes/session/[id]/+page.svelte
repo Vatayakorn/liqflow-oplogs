@@ -448,52 +448,165 @@
             content += "\n";
 
             // FX Section
-            if (session.fx_rate) {
+            if (
+                session.fx_rate ||
+                (session.fx_prices && session.fx_prices.length > 0)
+            ) {
                 content +=
                     "───────────────────────────────────────────────────────────\n";
                 content += "FX SECTION\n";
                 content +=
                     "───────────────────────────────────────────────────────────\n";
-                content += `Spot Rate: ${session.fx_rate} THB\n`;
-                if (session.market_context?.fxFetchTime) {
-                    content += `Fetched:   ${session.market_context.fxFetchTime}\n`;
+                if (session.fx_rate) {
+                    content += `Spot Rate: ${session.fx_rate} THB\n`;
+                    if (session.market_context?.fxFetchTime) {
+                        content += `Fetched:   ${session.market_context.fxFetchTime}\n`;
+                    }
                 }
                 if (session.fx_notes) {
                     content += `Notes:     ${session.fx_notes}\n`;
                 }
+
+                // FX History
+                if (session.fx_prices && session.fx_prices.length > 0) {
+                    content += "\nPrice History:\n";
+                    session.fx_prices.forEach((entry) => {
+                        const time = new Date(entry.timestamp).toLocaleString(
+                            "th-TH",
+                        );
+                        content += `  • ${entry.rate} THB [${time}]\n`;
+                        if (entry.note) content += `    📝 ${entry.note}\n`;
+                    });
+                }
                 content += "\n";
             }
 
-            // Broker Section
-            if (session.btz_bid || session.btz_ask) {
+            // Broker (Bitazza)
+            if (session.bitazza_prices && session.bitazza_prices.length > 0) {
                 content +=
                     "───────────────────────────────────────────────────────────\n";
-                content += "BROKER (BTZ/MAXBIT)\n";
+                content += "BROKER (BITAZZA)\n";
                 content +=
                     "───────────────────────────────────────────────────────────\n";
-                content += `BID: ${session.btz_bid || "-"}\n`;
-                content += `ASK: ${session.btz_ask || "-"}\n`;
-                if (session.market_context?.brokerFetchTime) {
-                    content += `Fetched: ${session.market_context.brokerFetchTime}\n`;
+                session.bitazza_prices.forEach((entry) => {
+                    const time = new Date(entry.timestamp).toLocaleString(
+                        "th-TH",
+                    );
+                    content += `  • BID: ${entry.bid.padStart(8)}  ASK: ${entry.ask.padStart(8)} [${time}]\n`;
+                    if (entry.note) content += `    📝 ${entry.note}\n`;
+                });
+                content += "\n";
+            }
+
+            // Broker (Zcom)
+            if (session.zcom_prices && session.zcom_prices.length > 0) {
+                content +=
+                    "───────────────────────────────────────────────────────────\n";
+                content += "BROKER (ZCOM)\n";
+                content +=
+                    "───────────────────────────────────────────────────────────\n";
+                session.zcom_prices.forEach((entry) => {
+                    const time = new Date(entry.timestamp).toLocaleString(
+                        "th-TH",
+                    );
+                    content += `  • BID: ${entry.bid.padStart(8)}  ASK: ${entry.ask.padStart(8)} [${time}]\n`;
+                    if (entry.note) content += `    📝 ${entry.note}\n`;
+                });
+                content += "\n";
+            }
+
+            // Broker (Xspring)
+            if (session.xspring_prices && session.xspring_prices.length > 0) {
+                content +=
+                    "───────────────────────────────────────────────────────────\n";
+                content += "BROKER (XSPRING)\n";
+                content +=
+                    "───────────────────────────────────────────────────────────\n";
+                session.xspring_prices.forEach((entry) => {
+                    const time = new Date(entry.timestamp).toLocaleString(
+                        "th-TH",
+                    );
+                    content += `  • BID: ${entry.bid.padStart(8)}  ASK: ${entry.ask.padStart(8)} [${time}]\n`;
+                    if (entry.note) content += `    📝 ${entry.note}\n`;
+                });
+                content += "\n";
+            }
+
+            // Broker (Maxbit)
+            if (
+                session.btz_bid ||
+                session.btz_ask ||
+                (session.maxbit_prices && session.maxbit_prices.length > 0)
+            ) {
+                content +=
+                    "───────────────────────────────────────────────────────────\n";
+                content += "BROKER (MAXBIT)\n";
+                content +=
+                    "───────────────────────────────────────────────────────────\n";
+                if (session.btz_bid || session.btz_ask) {
+                    content += `USDT BID: ${session.btz_bid || "-"}\n`;
+                    content += `USDT ASK: ${session.btz_ask || "-"}\n`;
+                    if (session.btz_usdc_bid || session.btz_usdc_ask) {
+                        content += `USDC BID: ${session.btz_usdc_bid || "-"}\n`;
+                        content += `USDC ASK: ${session.btz_usdc_ask || "-"}\n`;
+                    }
+                    if (session.market_context?.brokerFetchTime) {
+                        content += `Fetched:  ${session.market_context.brokerFetchTime}\n`;
+                    }
+                    if (session.btz_notes) {
+                        content += `Notes:    ${session.btz_notes}\n`;
+                    }
                 }
-                if (session.btz_notes) {
-                    content += `Notes: ${session.btz_notes}\n`;
+
+                // Maxbit History
+                if (session.maxbit_prices && session.maxbit_prices.length > 0) {
+                    content += "\nPrice History:\n";
+                    session.maxbit_prices.forEach((entry) => {
+                        const time = new Date(entry.timestamp).toLocaleString(
+                            "th-TH",
+                        );
+                        content += `  • BID: ${entry.bid.padStart(8)}  ASK: ${entry.ask.padStart(8)} [${time}]\n`;
+                        if (entry.note) content += `    📝 ${entry.note}\n`;
+                    });
                 }
                 content += "\n";
             }
 
             // Exchange Comparison
-            if (session.exchange1 || session.exchange2) {
+            if (
+                session.exchange1 ||
+                session.exchange2 ||
+                (session.exchange_prices && session.exchange_prices.length > 0)
+            ) {
                 content +=
                     "───────────────────────────────────────────────────────────\n";
                 content += "EXCHANGE COMPARISON\n";
                 content +=
                     "───────────────────────────────────────────────────────────\n";
-                content += `${formatExchangeName(session.exchange1)}: ${session.exchange1_price || "-"}\n`;
-                content += `${formatExchangeName(session.exchange2)}: ${session.exchange2_price || "-"}\n`;
-                content += `Difference: ${session.exchange_diff || "0.00"} (${formatExchangeName(session.exchange_higher)} higher)\n`;
-                if (session.market_context?.exchangeFetchTime) {
-                    content += `Fetched: ${session.market_context.exchangeFetchTime}\n`;
+                if (session.exchange1 || session.exchange2) {
+                    content += `${formatExchangeName(session.exchange1)}: ${session.exchange1_price || "-"}\n`;
+                    content += `${formatExchangeName(session.exchange2)}: ${session.exchange2_price || "-"}\n`;
+                    content += `Difference: ${session.exchange_diff || "0.00"} (${formatExchangeName(session.exchange_higher)} higher)\n`;
+                    if (session.market_context?.exchangeFetchTime) {
+                        content += `Fetched: ${session.market_context.exchangeFetchTime}\n`;
+                    }
+                }
+
+                // Exchange History
+                if (
+                    session.exchange_prices &&
+                    session.exchange_prices.length > 0
+                ) {
+                    content += "\nPrice History:\n";
+                    session.exchange_prices.forEach((entry) => {
+                        const time = new Date(entry.timestamp).toLocaleString(
+                            "th-TH",
+                        );
+                        content += `  • ${entry.exchange1} (${entry.exchange1Bid}/${entry.exchange1Ask}) vs ${entry.exchange2} (${entry.exchange2Bid}/${entry.exchange2Ask}) [${time}]\n`;
+                        if (entry.diff)
+                            content += `    Diff: ${entry.diff} (${entry.higher} higher)\n`;
+                        if (entry.note) content += `    📝 ${entry.note}\n`;
+                    });
                 }
 
                 // Order Book Snapshots
