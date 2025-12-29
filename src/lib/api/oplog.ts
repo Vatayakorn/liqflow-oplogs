@@ -382,7 +382,8 @@ export async function updateSessionWithHistory(
         'fx_rate', 'fx_notes', 'btz_bid', 'btz_ask', 'btz_usdc_bid', 'btz_usdc_ask', 'btz_notes',
         'exchange1', 'exchange1_price', 'exchange2', 'exchange2_price',
         'exchange_diff', 'exchange_higher', 'exchange_notes',
-        'prefund_current', 'prefund_target', 'prefund_notes', 'matching_notes', 'otc_notes', 'note', 'shift'
+        'prefund_current', 'prefund_target', 'prefund_notes', 'matching_notes', 'otc_notes', 'note', 'shift',
+        'broker_prices', 'fx_prices', 'maxbit_prices', 'bitazza_prices', 'zcom_prices', 'xspring_prices', 'exchange_prices'
     ];
 
     for (const field of trackableFields) {

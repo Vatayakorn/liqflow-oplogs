@@ -14,37 +14,10 @@
         const logDate = new Date().toISOString().split("T")[0];
 
         try {
+            const { images, audio, ...sessionData } = formData;
             const session = await createSession({
-                log_date: logDate, // Default to today
-                shift: formData.shift || "A",
-                start_time: formData.start_time,
-                end_time: formData.end_time || undefined,
-                broker: formData.broker,
-                trader: formData.trader,
-                head: formData.head,
-                recorder: formData.recorder,
-                fx_rate: formData.fx_rate
-                    ? parseFloat(formData.fx_rate)
-                    : undefined,
-                fx_notes: formData.fx_notes,
-                btz_bid: formData.btz_bid,
-                btz_ask: formData.btz_ask,
-                btz_notes: formData.btz_notes,
-                exchange1: formData.exchange1,
-                exchange1_price: formData.exchange1_price,
-                exchange2: formData.exchange2,
-                exchange2_price: formData.exchange2_price,
-                exchange_diff: formData.exchange_diff,
-                exchange_higher: formData.exchange_higher,
-                exchange_notes: formData.exchange_notes,
-                otc_transactions: formData.otc_transactions,
-                prefund_current: formData.prefund_current,
-                prefund_target: formData.prefund_target,
-                prefund_notes: formData.prefund_notes,
-                matching_notes: formData.matching_notes,
-                otc_notes: formData.otc_notes,
-                note: formData.note,
-                market_context: formData.market_context,
+                log_date: logDate,
+                ...sessionData,
             });
 
             if (formData.images && formData.images.length > 0) {
