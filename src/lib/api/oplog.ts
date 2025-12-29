@@ -395,6 +395,17 @@ export async function updateSessionWithHistory(
         const normOld = normalizeEmpty(oldValue);
         const normNew = normalizeEmpty(newValue);
 
+        // Advanced comparison for objects/arrays
+        const isObject = (v: any) => v !== null && typeof v === 'object';
+
+        if (isObject(normOld) || isObject(normNew)) {
+            // Compare stringified versions of objects/arrays
+            if (JSON.stringify(normOld) !== JSON.stringify(normNew)) {
+                changes.push({ field, oldValue: normOld, newValue: normNew });
+            }
+            continue;
+        }
+
         if (normOld !== normNew) {
             // Handle numeric comparison
             if (typeof normOld === 'number' || typeof normNew === 'number') {

@@ -23,6 +23,8 @@
         fx_notes: "FX Notes",
         btz_bid: "BTZ Bid",
         btz_ask: "BTZ Ask",
+        btz_usdc_bid: "BTZ USDC Bid",
+        btz_usdc_ask: "BTZ USDC Ask",
         btz_notes: "BTZ Notes",
         exchange1: "Exchange 1",
         exchange1_price: "Exchange 1 Price",
@@ -38,7 +40,22 @@
         otc_notes: "OTC Notes",
         note: "Notes",
         shift: "Shift",
+        broker_prices: "Manual Broker Prices",
+        fx_prices: "FX Price History",
+        maxbit_prices: "Maxbit Price History",
+        bitazza_prices: "Bitazza Price History",
+        zcom_prices: "Zcom Price History",
+        xspring_prices: "Xspring Price History",
+        exchange_prices: "Exchange Price History",
     };
+
+    function formatValue(value: any): string {
+        if (value === null || value === undefined || value === "")
+            return "(empty)";
+        if (Array.isArray(value)) return `${value.length} items`;
+        if (typeof value === "object") return JSON.stringify(value);
+        return value.toString();
+    }
 
     function formatChangesForToast(changes: ChangeEntry[]): string {
         if (changes.length === 0) return "No changes detected";
@@ -47,8 +64,8 @@
         const displayChanges = changes.slice(0, maxItems);
         const lines = displayChanges.map((c) => {
             const label = FIELD_LABELS[c.field] || c.field;
-            const oldStr = c.oldValue ?? "(empty)";
-            const newStr = c.newValue ?? "(empty)";
+            const oldStr = formatValue(c.oldValue);
+            const newStr = formatValue(c.newValue);
             return `${label}: ${oldStr} → ${newStr}`;
         });
 

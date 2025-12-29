@@ -409,6 +409,61 @@
         }
     }
 
+    // Field labels for display
+    const FIELD_LABELS: Record<string, string> = {
+        start_time: "Start Time",
+        end_time: "End Time",
+        broker: "Broker",
+        trader: "Trader",
+        head: "Head",
+        recorder: "Recorder",
+        fx_rate: "FX Rate",
+        fx_notes: "FX Notes",
+        btz_bid: "BTZ Bid",
+        btz_ask: "BTZ Ask",
+        btz_usdc_bid: "BTZ USDC Bid",
+        btz_usdc_ask: "BTZ USDC Ask",
+        btz_notes: "BTZ Notes",
+        exchange1: "Exchange 1",
+        exchange1_price: "Exchange 1 Price",
+        exchange2: "Exchange 2",
+        exchange2_price: "Exchange 2 Price",
+        exchange_diff: "Exchange Diff",
+        exchange_higher: "Higher Exchange",
+        exchange_notes: "Exchange Notes",
+        prefund_current: "Prefund Current",
+        prefund_target: "Prefund Target",
+        prefund_notes: "Prefund Status Notes",
+        matching_notes: "Matching Notes",
+        otc_notes: "OTC Notes",
+        note: "Notes",
+        shift: "Shift",
+        broker_prices: "Manual Broker Prices",
+        fx_prices: "FX Price History",
+        maxbit_prices: "Maxbit Price History",
+        bitazza_prices: "Bitazza Price History",
+        zcom_prices: "Zcom Price History",
+        xspring_prices: "Xspring Price History",
+        exchange_prices: "Exchange Price History",
+    };
+
+    function formatHistoryValue(field: string, value: any): string {
+        if (value === null || value === undefined || value === "")
+            return "(empty)";
+
+        // Handle arrays (e.g., price histories)
+        if (Array.isArray(value)) {
+            return `${value.length} items`;
+        }
+
+        // Handle objects
+        if (typeof value === "object") {
+            return JSON.stringify(value);
+        }
+
+        return value.toString();
+    }
+
     function exportToTXT() {
         if (!session) return;
 
@@ -1915,15 +1970,22 @@
                                 <ul class="changes-list">
                                     {#each entry.changes as change}
                                         <li>
-                                            <strong>{change.field}</strong>:
+                                            <strong
+                                                >{FIELD_LABELS[change.field] ||
+                                                    change.field}</strong
+                                            >:
                                             <span class="old-value"
-                                                >{change.oldValue ??
-                                                    "(empty)"}</span
+                                                >{formatHistoryValue(
+                                                    change.field,
+                                                    change.oldValue,
+                                                )}</span
                                             >
                                             →
                                             <span class="new-value"
-                                                >{change.newValue ??
-                                                    "(empty)"}</span
+                                                >{formatHistoryValue(
+                                                    change.field,
+                                                    change.newValue,
+                                                )}</span
                                             >
                                         </li>
                                     {/each}
