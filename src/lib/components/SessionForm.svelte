@@ -886,13 +886,13 @@
             // Auto-save Exchange (Bitkub + BinanceTH) if available
             if (prices.bitkub || prices.binanceTH) {
                 const newExchange1Bid =
-                    prices.bitkub?.bid.toFixed(2) || exchange1Bid;
+                    prices.bitkub?.bid.toFixed(3) || exchange1Bid;
                 const newExchange1Ask =
-                    prices.bitkub?.ask.toFixed(2) || exchange1Ask;
+                    prices.bitkub?.ask.toFixed(3) || exchange1Ask;
                 const newExchange2Bid =
-                    prices.binanceTH?.bid.toFixed(2) || exchange2Bid;
+                    prices.binanceTH?.bid.toFixed(3) || exchange2Bid;
                 const newExchange2Ask =
-                    prices.binanceTH?.ask.toFixed(2) || exchange2Ask;
+                    prices.binanceTH?.ask.toFixed(3) || exchange2Ask;
 
                 // Calculate diff
                 const bid1 = parseFloat(newExchange1Bid);
@@ -900,7 +900,7 @@
                 let diff = "";
                 let higher = "";
                 if (bid1 && bid2) {
-                    const diffValue = Math.abs(bid1 - bid2).toFixed(2);
+                    const diffValue = Math.abs(bid1 - bid2).toFixed(3);
                     diff = diffValue;
                     higher = bid1 > bid2 ? exchange1 : exchange2;
                 }
@@ -973,8 +973,8 @@
 
     $: if ($bitkubLive && effectivePriceMode === "live") {
         bitkubBook = $bitkubLive;
-        exchange1Bid = $bitkubLive.bestBid.toFixed(2);
-        exchange1Ask = $bitkubLive.bestAsk.toFixed(2);
+        exchange1Bid = $bitkubLive.bestBid.toFixed(3);
+        exchange1Ask = $bitkubLive.bestAsk.toFixed(3);
         updateExchangeDiff();
         exchangeFetchTime = getCurrentTimeStr();
     }
@@ -1214,12 +1214,12 @@
             binanceBook = binanceTH;
 
             if (bitkub) {
-                exchange1Bid = bitkub.bestBid.toFixed(2);
-                exchange1Ask = bitkub.bestAsk.toFixed(2);
+                exchange1Bid = bitkub.bestBid.toFixed(3);
+                exchange1Ask = bitkub.bestAsk.toFixed(3);
             }
             if (binanceTH) {
-                exchange2Bid = binanceTH.bestBid.toFixed(2);
-                exchange2Ask = binanceTH.bestAsk.toFixed(2);
+                exchange2Bid = binanceTH.bestBid.toFixed(3);
+                exchange2Ask = binanceTH.bestAsk.toFixed(3);
             }
 
             // Calculate difference
@@ -2537,7 +2537,7 @@
                                         style="opacity: {1 - i * 0.15}"
                                     >
                                         <span class="price"
-                                            >{bid.price.toFixed(2)}</span
+                                            >{bid.price.toFixed(3)}</span
                                         >
                                         <span class="amount"
                                             >{bid.amount.toLocaleString()}</span
@@ -2555,7 +2555,7 @@
                                         style="opacity: {1 - i * 0.15}"
                                     >
                                         <span class="price"
-                                            >{ask.price.toFixed(2)}</span
+                                            >{ask.price.toFixed(3)}</span
                                         >
                                         <span class="amount"
                                             >{ask.amount.toLocaleString()}</span
@@ -2590,7 +2590,7 @@
                                         style="opacity: {1 - i * 0.15}"
                                     >
                                         <span class="price"
-                                            >{bid.price.toFixed(2)}</span
+                                            >{bid.price.toFixed(3)}</span
                                         >
                                         <span class="amount"
                                             >{bid.amount.toLocaleString()}</span
@@ -2900,7 +2900,7 @@
                                     {tx.currency}</span
                                 >
                                 <span class="order-rate"
-                                    >@{tx.rate?.toFixed(2) || "-"}</span
+                                    >@{tx.rate?.toFixed(3) || "-"}</span
                                 >
                                 <span class="order-total"
                                     >฿{formatCurrency(tx.total || 0)}</span

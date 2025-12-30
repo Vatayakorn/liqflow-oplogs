@@ -680,10 +680,10 @@
                             const bid = bitkubBook.bids[i];
                             const ask = bitkubBook.asks[i];
                             const bidStr = bid
-                                ? `${bid.price.toFixed(2).padStart(11)} / ${bid.amount.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 }).padStart(12)}`
+                                ? `${bid.price.toFixed(3).padStart(11)} / ${bid.amount.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 }).padStart(12)}`
                                 : "-".padStart(26);
                             const askStr = ask
-                                ? `${ask.price.toFixed(2).padStart(11)} / ${ask.amount.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 }).padStart(12)}`
+                                ? `${ask.price.toFixed(3).padStart(11)} / ${ask.amount.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 }).padStart(12)}`
                                 : "-".padStart(26);
                             content += `  │ ${bidStr} │ ${askStr} │\n`;
                         }
@@ -703,10 +703,10 @@
                             const bid = binanceBook.bids[i];
                             const ask = binanceBook.asks[i];
                             const bidStr = bid
-                                ? `${bid.price.toFixed(2).padStart(11)} / ${bid.amount.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 }).padStart(12)}`
+                                ? `${bid.price.toFixed(3).padStart(11)} / ${bid.amount.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 }).padStart(12)}`
                                 : "-".padStart(26);
                             const askStr = ask
-                                ? `${ask.price.toFixed(2).padStart(11)} / ${ask.amount.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 }).padStart(12)}`
+                                ? `${ask.price.toFixed(3).padStart(11)} / ${ask.amount.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 }).padStart(12)}`
                                 : "-".padStart(26);
                             content += `  │ ${bidStr} │ ${askStr} │\n`;
                         }
@@ -1761,7 +1761,7 @@
                                                 {tx.currency}</td
                                             >
                                             <td class="price"
-                                                >{tx.rate?.toFixed(2) ||
+                                                >{tx.rate?.toFixed(3) ||
                                                     "-"}</td
                                             >
                                             <td
