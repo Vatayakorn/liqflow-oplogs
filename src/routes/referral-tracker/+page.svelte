@@ -186,7 +186,7 @@
         c.name.toLowerCase().includes(searchQuery.toLowerCase()),
     );
 
-    function formatNumber(n: number | undefined, decimals = 2) {
+    function formatNumber(n: number | undefined, decimals = 3) {
         if (n === undefined) return "-";
         return n.toLocaleString(undefined, {
             minimumFractionDigits: decimals,
@@ -229,9 +229,9 @@
             tx.currency,
             tx.rate,
             tx.marketPrice || "",
-            tx.gap !== undefined ? (tx.gap * 100).toFixed(2) : "",
+            tx.gap !== undefined ? (tx.gap * 100).toFixed(3) : "",
             tx.profit !== undefined
-                ? (tx.profit * (isHalfMode ? 0.5 : 1)).toFixed(2)
+                ? (tx.profit * (isHalfMode ? 0.5 : 1)).toFixed(3)
                 : "",
         ]);
 
@@ -400,7 +400,7 @@
                                         (sum, tx) => sum + (tx.profit || 0),
                                         0,
                                     ) * (isHalfMode ? 0.5 : 1),
-                                    2,
+                                    3,
                                 )}</span
                             >
                         </div>
@@ -455,7 +455,7 @@
                                             {tx.currency}</td
                                         >
                                         <td class="price"
-                                            >@{formatNumber(tx.rate, 2)}</td
+                                            >@{formatNumber(tx.rate, 3)}</td
                                         >
                                         <td class="market-price">
                                             {#if tx.loadingPrice}
@@ -465,7 +465,7 @@
                                             {:else if tx.marketPrice}
                                                 {formatNumber(
                                                     tx.marketPrice,
-                                                    2,
+                                                    3,
                                                 )}
                                             {:else}
                                                 <span class="error-text"
@@ -479,7 +479,7 @@
                                             class:negative={(tx.gap || 0) < 0}
                                         >
                                             {#if tx.gap !== undefined}
-                                                {formatNumber(tx.gap * 100, 2)}
+                                                {formatNumber(tx.gap * 100, 3)}
                                             {:else}
                                                 -
                                             {/if}
@@ -494,7 +494,7 @@
                                             ฿{formatNumber(
                                                 (tx.profit || 0) *
                                                     (isHalfMode ? 0.5 : 1),
-                                                2,
+                                                3,
                                             )}
                                         </td>
                                     </tr>
