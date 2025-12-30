@@ -451,7 +451,7 @@
                                             {tx.action}
                                         </td>
                                         <td class="amount"
-                                            >{formatNumber(tx.amount, 0)}
+                                            >{formatNumber(tx.amount, 2)}
                                             {tx.currency}</td
                                         >
                                         <td class="price"
