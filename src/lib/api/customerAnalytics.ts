@@ -80,6 +80,7 @@ export interface CustomerProfile {
 
 export interface OtcTransactionSummary {
     id: string;
+    customerName?: string;
     date: string;
     action: 'BUY' | 'SELL';
     amount: number;
@@ -609,6 +610,7 @@ async function fetchCustomerApiTransactions(customerName: string): Promise<OtcTr
 
         return data.map((tx: any, idx: number) => ({
             id: tx.txn_id || `api-${idx}`,
+            customerName: tx.customer_name || tx.customerName,
             date: tx.transaction_date || tx.date,
             action: (tx.action?.toUpperCase() === 'BUY' ? 'BUY' : 'SELL') as 'BUY' | 'SELL',
             amount: typeof tx.amount === 'string' ? parseFloat(tx.amount) : (tx.amount || 0),

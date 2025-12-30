@@ -65,7 +65,7 @@ export const GET: RequestHandler = async ({ url }) => {
         // If by-customer endpoint doesn't exist, try fetching daily transactions in parallel and filtering
         if (response.status === 404) {
             console.log('[Customer API Proxy] by-customer endpoint returned 404, falling back to parallel daily fetch');
-            return await fetchAndFilterByCustomerParallel(cleanBaseUrl, customerName, timestamp, signature, limit);
+            return await fetchAndFilterByCustomerParallel(cleanBaseUrl, customerName, timestamp, signature, limit, dateFrom, dateTo);
         }
 
         if (!response.ok) {
@@ -96,21 +96,35 @@ async function fetchAndFilterByCustomerParallel(
     customerName: string,
     timestamp: string,
     signature: string,
-    limit: string
+    limit: string,
+    dateFrom?: string | null,
+    dateTo?: string | null
 ): Promise<Response> {
     try {
-        const daysToFetch = 90;
         const batchSize = 10;
         const allTransactions: any[] = [];
-        const today = new Date();
         const limitNum = parseInt(limit);
+
+        // Determine date range
+        const end = dateTo ? new Date(dateTo) : new Date();
+        const start = dateFrom ? new Date(dateFrom) : new Date(end);
+        if (!dateFrom) start.setDate(start.getDate() - 90);
+
+        // Calculate days to fetch
+        const diffTime = Math.abs(end.getTime() - start.getTime());
+        const daysToFetch = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+        console.log(`[Customer API Proxy] Parallel fetch for ${customerName} from ${start.toISOString().split('T')[0]} to ${end.toISOString().split('T')[0]} (${daysToFetch} days)`);
 
         for (let i = 0; i < daysToFetch; i += batchSize) {
             const batchPromises = [];
             for (let j = 0; j < batchSize && (i + j) < daysToFetch; j++) {
-                const date = new Date(today);
+                const date = new Date(end);
                 date.setDate(date.getDate() - (i + j));
                 const dateStr = date.toISOString().split('T')[0];
+
+                // Stop if we go before start date
+                if (date < start) continue;
 
                 const apiUrl = `${baseUrl}/transactions/by-date?date=${dateStr}&limit=500&offset=0`;
                 batchPromises.push(
@@ -141,8 +155,9 @@ async function fetchAndFilterByCustomerParallel(
                 allTransactions.push(...filtered);
             }
 
-            // If we already have enough, we can stop
-            if (allTransactions.length >= limitNum) break;
+            // Optimization: if we already have limit and we're just doing recent days, we could stop
+            // but for date range we should fetch it all unless limit is small.
+            // For now, let's keep it simple.
         }
 
         console.log(`[Customer API Proxy] Found ${allTransactions.length} transactions for ${customerName} (90 day window)`);

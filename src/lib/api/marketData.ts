@@ -299,6 +299,72 @@ export async function fetchAllMarketData(): Promise<{
 }
 
 /**
+ * Fetch BinanceTH price at a specific timestamp (Historical)
+ */
+export async function getBinanceTHPriceAt(timestamp: string): Promise<OrderBook | null> {
+    try {
+        // Query the closest record to the given timestamp (within 5 minutes ideally)
+        const date = new Date(timestamp);
+        const startTime = new Date(date.getTime() - 5 * 60 * 1000).toISOString();
+        const endTime = new Date(date.getTime() + 5 * 60 * 1000).toISOString();
+
+        const { data, error } = await supabase
+            .from('market_data')
+            .select('*')
+            .eq('source', 'binance_th')
+            .eq('symbol', 'USDTTHB')
+            .lte('created_at', timestamp)
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+        if (error || !data || data.length === 0) {
+            // Try one just after
+            const { data: dataAfter, error: errorAfter } = await supabase
+                .from('market_data')
+                .select('*')
+                .eq('source', 'binance_th')
+                .eq('symbol', 'USDTTHB')
+                .gte('created_at', timestamp)
+                .order('created_at', { ascending: true })
+                .limit(1);
+
+            if (errorAfter || !dataAfter || dataAfter.length === 0) return null;
+            return mapDbToOrderBook(dataAfter[0]);
+        }
+
+        return mapDbToOrderBook(data[0]);
+    } catch (err) {
+        console.error('[MarketData] Error fetching historical BinanceTH:', err);
+        return null;
+    }
+}
+
+/**
+ * Helper to map DB record to OrderBook
+ */
+function mapDbToOrderBook(dbData: any): OrderBook {
+    const bids = dbData.order_book?.bids?.slice(0, 5).map((b: any) => ({
+        price: parseFloat(b[0]),
+        amount: parseFloat(b[1])
+    })) || [];
+
+    const asks = dbData.order_book?.asks?.slice(0, 5).map((a: any) => ({
+        price: parseFloat(a[0]),
+        amount: parseFloat(a[1])
+    })) || [];
+
+    return {
+        bids,
+        asks,
+        bestBid: bids[0]?.price || 0,
+        bestAsk: asks[0]?.price || 0,
+        source: 'BinanceTH (Historical)',
+        timestamp: new Date(dbData.created_at),
+        raw: dbData.raw_data
+    };
+}
+
+/**
  * Format price for display
  */
 export function formatPrice(price: number, decimals = 2): string {

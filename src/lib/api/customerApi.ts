@@ -63,6 +63,7 @@ export async function fetchCustomerTransactions(
         // Map to OtcTransactionSummary format
         return data.map((tx, idx) => ({
             id: tx.txn_id || `api-${idx}-${Date.now()}`,
+            customerName: tx.customer_name,
             date: tx.transaction_date,
             action: tx.action.toUpperCase() === 'BUY' ? 'BUY' as const : 'SELL' as const,
             amount: typeof tx.amount === 'string' ? parseFloat(tx.amount) : tx.amount,
