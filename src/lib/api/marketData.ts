@@ -303,28 +303,41 @@ export async function fetchAllMarketData(): Promise<{
  */
 export async function getBinanceTHPriceAt(timestamp: string): Promise<OrderBook | null> {
     try {
-        // Query the closest record to the given timestamp (within 5 minutes ideally)
         const date = new Date(timestamp);
-        const startTime = new Date(date.getTime() - 5 * 60 * 1000).toISOString();
-        const endTime = new Date(date.getTime() + 5 * 60 * 1000).toISOString();
 
+        // Data collection started around 2024-12-23. 
+        // If the requested date is earlier, we likely don't have valid BinanceTH data.
+        const startDateLimit = new Date('2024-12-23T00:00:00Z');
+        if (date < startDateLimit) {
+            return null;
+        }
+
+        // Define a reasonable window (e.g., 30 minutes before or after)
+        // This prevents fetching a price from a completely different day if no data exists near the timestamp
+        const MAX_WINDOW_MS = 30 * 60 * 1000;
+        const windowStart = new Date(date.getTime() - MAX_WINDOW_MS).toISOString();
+        const windowEnd = new Date(date.getTime() + MAX_WINDOW_MS).toISOString();
+
+        // Try to find the closest record BEFORE the timestamp within the window
         const { data, error } = await supabase
             .from('market_data')
             .select('*')
             .eq('source', 'binance_th')
             .eq('symbol', 'USDTTHB')
             .lte('created_at', timestamp)
+            .gte('created_at', windowStart) // Enforce window
             .order('created_at', { ascending: false })
             .limit(1);
 
         if (error || !data || data.length === 0) {
-            // Try one just after
+            // Try to find the closest record AFTER the timestamp within the window
             const { data: dataAfter, error: errorAfter } = await supabase
                 .from('market_data')
                 .select('*')
                 .eq('source', 'binance_th')
                 .eq('symbol', 'USDTTHB')
                 .gte('created_at', timestamp)
+                .lte('created_at', windowEnd) // Enforce window
                 .order('created_at', { ascending: true })
                 .limit(1);
 
