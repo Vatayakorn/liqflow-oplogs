@@ -7,7 +7,6 @@
         updateDataAge,
         formatProfit,
         formatPercent,
-        DEFAULT_COINS,
         POLLING_INTERVAL_MS,
         PROFIT_THRESHOLD_PERCENT,
         type ArbitrageOpportunity,
@@ -24,10 +23,12 @@
     let dataAgeInterval: ReturnType<typeof setInterval> | null = null;
 
     // Filters
-    let selectedCoins: Set<string> = new Set(DEFAULT_COINS);
+    // empty set = ALL coins. If populated, only show those.
+    let selectedCoins: Set<string> = new Set();
     let selectedCases: Set<1 | 2 | 3> = new Set([1, 2, 3]);
     let minProfitPercent = 0;
     let showOnlyPositive = false;
+    let searchTerm = "";
 
     // Capital Simulation
     let simulationCapital = 10000; // Default 10,000 THB
@@ -80,39 +81,50 @@
 
     // Best opportunities
     $: bestOpps = getBestOpportunities(opportunities);
+
     $: filteredOpportunities = opportunities.filter((opp) => {
-        if (!selectedCoins.has(opp.coin)) return false;
+        // Filter by Coin (Set)
+        if (selectedCoins.size > 0 && !selectedCoins.has(opp.coin))
+            return false;
+
+        // Filter by Search Term
+        if (
+            searchTerm &&
+            !opp.coin.toLowerCase().includes(searchTerm.toLowerCase())
+        )
+            return false;
+
+        // Filter by Case
         if (!selectedCases.has(opp.case)) return false;
+
+        // Filter by Profit
         if (opp.profitPercent < minProfitPercent) return false;
+
+        // Filter by Positive
         if (showOnlyPositive && !opp.isPositive) return false;
+
         return true;
     });
 
     async function fetchData() {
         try {
-            error = null;
-            const result = await fetchAllArbitrageOpportunities(
-                Array.from(selectedCoins),
-            );
+            // Fetch ALL (no filter passed to API, filtering is done client-side for "All" view)
+            const result = await fetchAllArbitrageOpportunities();
             opportunities = result.opportunities;
             fx = result.fx;
             lastUpdate = new Date();
+            error = null;
         } catch (e) {
             console.error("Failed to fetch arbitrage data:", e);
-            error = "Failed to fetch data. Check your internet connection.";
+            error = "Failed to fetch data. Retrying...";
         } finally {
             loading = false;
         }
     }
 
     function startPolling() {
-        // Fetch immediately
         fetchData();
-
-        // Then poll
         pollingInterval = setInterval(fetchData, POLLING_INTERVAL_MS);
-
-        // Update data age every second
         dataAgeInterval = setInterval(() => {
             opportunities = updateDataAge(opportunities);
         }, 1000);
@@ -132,10 +144,11 @@
     function toggleCoin(coin: string) {
         if (selectedCoins.has(coin)) {
             selectedCoins.delete(coin);
+            selectedCoins = selectedCoins;
         } else {
             selectedCoins.add(coin);
+            selectedCoins = selectedCoins;
         }
-        selectedCoins = selectedCoins;
     }
 
     function toggleCase(caseNum: 1 | 2 | 3) {
@@ -148,11 +161,66 @@
     }
 
     function selectAllCoins() {
-        selectedCoins = new Set(DEFAULT_COINS);
+        selectedCoins = new Set(); // Empty means ALL
+        searchTerm = ""; // Clear search
     }
 
-    function clearAllCoins() {
-        selectedCoins = new Set();
+    function isCoinSelected(coin: string) {
+        return selectedCoins.has(coin);
+    }
+
+    // Sorting State
+    type SortKey =
+        | "dataAge"
+        | "coin"
+        | "case"
+        | "buyFrom"
+        | "sellTo"
+        | "buyPrice"
+        | "sellPrice"
+        | "fxRate"
+        | "profit"
+        | "profitPercent"
+        | "simProfit";
+    let sortKey: SortKey = "profitPercent";
+    let sortDirection: "asc" | "desc" = "desc";
+
+    // Reactive Sorted List
+    $: sortedOpportunities = [...filteredOpportunities].sort((a, b) => {
+        let valA: any;
+        let valB: any;
+
+        if (sortKey === "simProfit") {
+            valA = calculateSimulatedProfit(a).profit;
+            valB = calculateSimulatedProfit(b).profit;
+        } else {
+            valA = (a as any)[sortKey];
+            valB = (b as any)[sortKey];
+        }
+
+        if (valA < valB) return sortDirection === "asc" ? -1 : 1;
+        if (valA > valB) return sortDirection === "asc" ? 1 : -1;
+        return 0;
+    });
+
+    // Sort Handler
+    function handleSort(key: SortKey) {
+        if (sortKey === key) {
+            sortDirection = sortDirection === "asc" ? "desc" : "asc";
+        } else {
+            sortKey = key;
+            sortDirection = "desc";
+            if (key === "coin" || key === "buyFrom" || key === "sellTo") {
+                sortDirection = "asc";
+            }
+        }
+    }
+
+    function clearFilters() {
+        selectAllCoins();
+        selectedCases = new Set([1, 2, 3]);
+        minProfitPercent = 0;
+        showOnlyPositive = false;
     }
 
     onMount(() => {
@@ -257,24 +325,34 @@
 
     <!-- Filters Section -->
     <section class="filters-section">
-        <div class="filter-group">
-            <label class="filter-label">Coins</label>
-            <div class="filter-chips">
-                {#each DEFAULT_COINS as coin}
-                    <button
-                        class="chip"
-                        class:active={selectedCoins.has(coin)}
-                        on:click={() => toggleCoin(coin)}
+        <!-- Coin Filters -->
+        <div class="filter-group coin-filters">
+            <div class="filter-header">
+                <label class="filter-label">Coins</label>
+                <div class="filter-actions">
+                    <button class="chip-action" on:click={clearFilters}
+                        >Reset All</button
                     >
-                        {coin}
-                    </button>
-                {/each}
-                <button class="chip-action" on:click={selectAllCoins}
-                    >All</button
+                </div>
+            </div>
+
+            <div class="search-row">
+                <input
+                    type="text"
+                    placeholder="🔍 Search coin..."
+                    class="search-input"
+                    bind:value={searchTerm}
+                />
+            </div>
+
+            <div class="filter-chips">
+                <button
+                    class="chip-action"
+                    class:active={selectedCoins.size === 0}
+                    on:click={selectAllCoins}
                 >
-                <button class="chip-action" on:click={clearAllCoins}
-                    >Clear</button
-                >
+                    ALL
+                </button>
             </div>
         </div>
 
@@ -312,14 +390,14 @@
                 class="filter-input"
                 bind:value={minProfitPercent}
                 step="0.1"
-                min="0"
+                min="-100"
             />
         </div>
 
         <div class="filter-group">
             <label class="filter-toggle">
                 <input type="checkbox" bind:checked={showOnlyPositive} />
-                Show only positive
+                Show positive only
             </label>
         </div>
 
@@ -349,7 +427,7 @@
     {/if}
 
     <!-- Loading State -->
-    {#if loading}
+    {#if loading && !opportunities.length}
         <div class="loading-state">
             <div class="spinner"></div>
             <p>Loading arbitrage opportunities...</p>
@@ -376,22 +454,121 @@
                     <table class="opportunity-table">
                         <thead>
                             <tr>
-                                <th>Age</th>
-                                <th>Coin</th>
-                                <th>Case</th>
-                                <th>Buy From</th>
-                                <th>Sell To</th>
-                                <th class="numeric">Best Ask</th>
-                                <th class="numeric">Best Bid</th>
-                                <th class="numeric">FX</th>
-                                <th class="numeric">Profit/Unit</th>
-                                <th class="numeric">%</th>
-                                <th class="numeric sim-profit">Sim. Profit</th>
+                                <th
+                                    on:click={() => handleSort("dataAge")}
+                                    class="sortable"
+                                >
+                                    Age {sortKey === "dataAge"
+                                        ? sortDirection === "asc"
+                                            ? "↑"
+                                            : "↓"
+                                        : ""}
+                                </th>
+                                <th
+                                    on:click={() => handleSort("coin")}
+                                    class="sortable"
+                                >
+                                    Coin {sortKey === "coin"
+                                        ? sortDirection === "asc"
+                                            ? "↑"
+                                            : "↓"
+                                        : ""}
+                                </th>
+                                <th
+                                    on:click={() => handleSort("case")}
+                                    class="sortable"
+                                >
+                                    Case {sortKey === "case"
+                                        ? sortDirection === "asc"
+                                            ? "↑"
+                                            : "↓"
+                                        : ""}
+                                </th>
+                                <th
+                                    on:click={() => handleSort("buyFrom")}
+                                    class="sortable"
+                                >
+                                    Buy From {sortKey === "buyFrom"
+                                        ? sortDirection === "asc"
+                                            ? "↑"
+                                            : "↓"
+                                        : ""}
+                                </th>
+                                <th
+                                    on:click={() => handleSort("sellTo")}
+                                    class="sortable"
+                                >
+                                    Sell To {sortKey === "sellTo"
+                                        ? sortDirection === "asc"
+                                            ? "↑"
+                                            : "↓"
+                                        : ""}
+                                </th>
+                                <th
+                                    on:click={() => handleSort("buyPrice")}
+                                    class="numeric sortable"
+                                >
+                                    Best Ask {sortKey === "buyPrice"
+                                        ? sortDirection === "asc"
+                                            ? "↑"
+                                            : "↓"
+                                        : ""}
+                                </th>
+                                <th
+                                    on:click={() => handleSort("sellPrice")}
+                                    class="numeric sortable"
+                                >
+                                    Best Bid {sortKey === "sellPrice"
+                                        ? sortDirection === "asc"
+                                            ? "↑"
+                                            : "↓"
+                                        : ""}
+                                </th>
+                                <th
+                                    on:click={() => handleSort("fxRate")}
+                                    class="numeric sortable"
+                                >
+                                    FX {sortKey === "fxRate"
+                                        ? sortDirection === "asc"
+                                            ? "↑"
+                                            : "↓"
+                                        : ""}
+                                </th>
+                                <th
+                                    on:click={() => handleSort("profit")}
+                                    class="numeric sortable"
+                                >
+                                    Profit/Unit {sortKey === "profit"
+                                        ? sortDirection === "asc"
+                                            ? "↑"
+                                            : "↓"
+                                        : ""}
+                                </th>
+                                <th
+                                    on:click={() => handleSort("profitPercent")}
+                                    class="numeric sortable"
+                                >
+                                    % {sortKey === "profitPercent"
+                                        ? sortDirection === "asc"
+                                            ? "↑"
+                                            : "↓"
+                                        : ""}
+                                </th>
+                                <th
+                                    on:click={() => handleSort("simProfit")}
+                                    class="numeric sim-profit sortable"
+                                >
+                                    Sim. Profit {sortKey === "simProfit"
+                                        ? sortDirection === "asc"
+                                            ? "↑"
+                                            : "↓"
+                                        : ""}
+                                </th>
                                 <th>Signal</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {#each filteredOpportunities as opp (opp.id)}
+                            {#each sortedOpportunities as opp (opp.id)}
                                 <tr
                                     class:positive={opp.isPositive}
                                     class:negative={!opp.isPositive}
@@ -587,6 +764,29 @@
         gap: 0.5rem;
     }
 
+    .coin-filters {
+        flex: 1;
+        min-width: 300px;
+    }
+
+    .filter-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .search-row {
+        margin-bottom: 0.5rem;
+    }
+
+    .search-input {
+        width: 100%;
+        padding: 0.5rem 0.75rem;
+        border-radius: 8px;
+        border: 1px solid var(--color-separator, #e5e5ea);
+        font-size: 0.875rem;
+    }
+
     .filter-label {
         font-size: 0.8125rem;
         font-weight: 600;
@@ -649,6 +849,12 @@
 
     .chip-action:hover {
         text-decoration: underline;
+    }
+
+    .chip-action.active {
+        background: #e5e5ea;
+        color: black;
+        text-decoration: none;
     }
 
     .filter-input {
@@ -761,6 +967,16 @@
         color: var(--color-text-secondary, #636366);
         background: var(--color-bg-secondary, #f8f9fa);
         border-bottom: 1px solid var(--color-separator, #e5e5ea);
+    }
+
+    .opportunity-table th.sortable {
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .opportunity-table th.sortable:hover {
+        background: var(--color-bg-tertiary, #f0f0f5);
+        color: var(--color-primary, #007aff);
     }
 
     .opportunity-table th.numeric {

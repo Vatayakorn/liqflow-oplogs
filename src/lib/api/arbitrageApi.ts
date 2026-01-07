@@ -9,7 +9,7 @@ export interface GlobalPrice {
     bestBid: number;
     bestAsk: number;
     source: string;
-    symbol: string;
+    symbol: string; // Unified symbol (e.g., BTC, ETH)
     timestamp: Date;
 }
 
@@ -17,7 +17,7 @@ export interface LocalPrice {
     bestBid: number;
     bestAsk: number;
     source: string;
-    symbol: string;
+    symbol: string; // Unified symbol (e.g., BTC, ETH)
     timestamp: Date;
 }
 
@@ -49,9 +49,6 @@ export interface FxData {
 
 // ==================== CONSTANTS ====================
 
-// Default coins to track (major coins available on both Bitkub and BinanceTH)
-export const DEFAULT_COINS = ['BTC', 'ETH', 'XRP', 'BNB', 'SOL', 'DOGE', 'ADA', 'MATIC'];
-
 // Polling interval for real-time updates (milliseconds)
 export const POLLING_INTERVAL_MS = 3000;
 
@@ -63,34 +60,78 @@ const ENDPOINTS = {
     binanceGlobal: 'https://api.binance.com/api/v3/ticker/bookTicker',
     bybit: 'https://api.bybit.com/v5/market/tickers',
     bitkub: {
-        tickerV3: 'https://api.bitkub.com/api/v3/market/ticker',
+        ticker: 'https://api.bitkub.com/api/v3/market/ticker', // V3 returns array
     },
     binanceTH: {
-        depth: 'https://api.binance.th/api/v1/depth',
+        bookTicker: 'https://api.binance.th/api/v1/ticker/bookTicker',
     },
 };
 
-// ==================== SYMBOL MAPPING ====================
+// ==================== SYMBOL NORMALIZATION ====================
 
-// Map standard symbols to Bitkub specific symbols if they differ
-const BITKUB_SYMBOL_MAP: Record<string, string> = {
-    'MATIC': 'POL', // Polygon migrated to POL on Bitkub
+// Map Bitkub specific symbols to standard symbols if they usually differ (beyond prefix)
+// Bitkub V3 keys are like 'BTC_THB', 'ETH_THB'
+const BITKUB_OVERRIDES: Record<string, string> = {
+    'LUNA': 'LUNC',  // Bitkub LUNA is actually Terra Classic (LUNC)
+    'LUNA2': 'LUNA', // Bitkub LUNA2 is actually Terra 2.0 (LUNA)
+    'GALA1': 'GALA',
 };
+
+const SYMBOL_ALIASES: Record<string, string> = {
+    'GAL': 'GALEON', // Generic alias if needed across exchanges
+    'USDTTHB': 'USDT', // For BinanceTH consistency
+};
+
+function normalizeSymbol(rawSymbol: string, exchange: 'Bitkub' | 'BinanceTH' | 'Global'): string | null {
+    let symbol = rawSymbol;
+
+    if (exchange === 'Bitkub') {
+        if (symbol.endsWith('_THB')) {
+            symbol = symbol.replace('_THB', '');
+        } else if (symbol.startsWith('THB_')) { // Fallback for V1 just in case
+            symbol = symbol.replace('THB_', '');
+        } else {
+            return null; // Ignore non-THB pairs
+        }
+
+        // Apply Bitkub specific overrides
+        if (BITKUB_OVERRIDES[symbol]) {
+            symbol = BITKUB_OVERRIDES[symbol];
+        }
+    } else if (exchange === 'BinanceTH') {
+        if (symbol.endsWith('THB') && symbol !== 'USDTTHB') { // Ignore USDTTHB as it's FX
+            symbol = symbol.replace('THB', '');
+        } else {
+            return null; // Ignore non-THB pairs
+        }
+    } else if (exchange === 'Global') {
+        if (symbol.endsWith('USDT')) {
+            symbol = symbol.replace('USDT', '');
+        } else {
+            return null; // Ignore non-USDT pairs
+        }
+    }
+
+    return SYMBOL_ALIASES[symbol] || symbol;
+}
 
 // ==================== FX RATE ====================
 
 /**
  * Fetch USDT/THB mid rate from BinanceTH
- * FX = (Ask + Bid) / 2
  */
 export async function fetchBinanceTHFxMid(): Promise<FxData> {
     try {
-        const timestamp = new Date().getTime();
-        const response = await fetch(`${ENDPOINTS.binanceTH.depth}?symbol=USDTTHB&limit=1&t=${timestamp}`);
+        // We can fetch this from the bulk call too, but keeping it separate for clarity/reliability ensures we always have FX
+        const response = await fetch(`${ENDPOINTS.binanceTH.bookTicker}?symbol=USDTTHB`);
         const data = await response.json();
 
-        const bestBid = parseFloat(data.bids[0][0]);
-        const bestAsk = parseFloat(data.asks[0][0]);
+        // data is object for single symbol or array for bulk?
+        // ?symbol=USDTTHB returns object according to binance docs, but let's handle both
+        const ticker = Array.isArray(data) ? data[0] : data;
+
+        const bestBid = parseFloat(ticker.bidPrice);
+        const bestAsk = parseFloat(ticker.askPrice);
         const mid = (bestBid + bestAsk) / 2;
 
         return {
@@ -102,175 +143,145 @@ export async function fetchBinanceTHFxMid(): Promise<FxData> {
         };
     } catch (error) {
         console.error('[ArbitrageAPI] Error fetching FX rate:', error);
-        throw error;
-    }
-}
-
-// ==================== GLOBAL EXCHANGE PRICES ====================
-
-/**
- * Fetch price from Binance Global
- */
-export async function fetchBinanceGlobalPrice(coin: string): Promise<GlobalPrice | null> {
-    try {
-        const symbol = `${coin}USDT`;
-        const response = await fetch(`${ENDPOINTS.binanceGlobal}?symbol=${symbol}`);
-
-        if (!response.ok) {
-            console.warn(`[ArbitrageAPI] Binance Global: ${symbol} not found`);
-            return null;
-        }
-
-        const data = await response.json();
-
+        // Fallback to approximate rate if fails (rare)
         return {
-            bestBid: parseFloat(data.bidPrice),
-            bestAsk: parseFloat(data.askPrice),
-            source: 'Binance',
-            symbol: coin,
+            mid: 34.0,
+            bid: 33.9,
+            ask: 34.1,
+            source: 'FixedFallback',
             timestamp: new Date(),
         };
-    } catch (error) {
-        console.error(`[ArbitrageAPI] Binance Global error for ${coin}:`, error);
-        return null;
+    }
+}
+
+// ==================== BULK FETCHERS ====================
+
+/**
+ * Fetch all prices from Bitkub
+ */
+async function fetchAllBitkubTickers(): Promise<LocalPrice[]> {
+    try {
+        const response = await fetch(ENDPOINTS.bitkub.ticker);
+        if (!response.ok) throw new Error('Bitkub API failed');
+        const data = await response.json();
+        // V3 data is an array: [{ symbol: 'BTC_THB', highest_bid: '123', lowest_ask: '124', ... }]
+
+        const prices: LocalPrice[] = [];
+        for (const ticker of data) {
+            const sym = normalizeSymbol(ticker.symbol, 'Bitkub');
+            const bid = parseFloat(ticker.highest_bid);
+            const ask = parseFloat(ticker.lowest_ask);
+
+            if (sym && bid > 0 && ask > 0) {
+                prices.push({
+                    source: 'Bitkub',
+                    symbol: sym,
+                    bestBid: bid,
+                    bestAsk: ask,
+                    timestamp: new Date()
+                });
+            }
+        }
+        return prices;
+    } catch (e) {
+        console.error('Error fetching Bitkub tickers:', e);
+        return [];
     }
 }
 
 /**
- * Fetch price from Bybit
+ * Fetch all prices from BinanceTH
  */
-export async function fetchBybitPrice(coin: string): Promise<GlobalPrice | null> {
+async function fetchAllBinanceTHTickers(): Promise<LocalPrice[]> {
     try {
-        const symbol = `${coin}USDT`;
-        const response = await fetch(`${ENDPOINTS.bybit}?category=spot&symbol=${symbol}`);
+        const response = await fetch(ENDPOINTS.binanceTH.bookTicker);
+        if (!response.ok) throw new Error('BinanceTH API failed');
         const data = await response.json();
 
-        if (data.retCode !== 0 || !data.result?.list?.[0]) {
-            console.warn(`[ArbitrageAPI] Bybit: ${symbol} not found`);
-            return null;
+        const prices: LocalPrice[] = [];
+        for (const ticker of data) {
+            const sym = normalizeSymbol(ticker.symbol, 'BinanceTH');
+            if (sym) {
+                prices.push({
+                    source: 'BinanceTH',
+                    symbol: sym,
+                    bestBid: parseFloat(ticker.bidPrice),
+                    bestAsk: parseFloat(ticker.askPrice),
+                    timestamp: new Date()
+                });
+            }
         }
-
-        const ticker = data.result.list[0];
-
-        return {
-            bestBid: parseFloat(ticker.bid1Price),
-            bestAsk: parseFloat(ticker.ask1Price),
-            source: 'Bybit',
-            symbol: coin,
-            timestamp: new Date(),
-        };
-    } catch (error) {
-        console.error(`[ArbitrageAPI] Bybit error for ${coin}:`, error);
-        return null;
+        return prices;
+    } catch (e) {
+        console.error('Error fetching BinanceTH tickers:', e);
+        return [];
     }
 }
 
 /**
- * Fetch all global prices for a coin (Binance + Bybit)
+ * Fetch all prices from Binance Global
  */
-export async function fetchAllGlobalPrices(coin: string): Promise<GlobalPrice[]> {
-    const [binance, bybit] = await Promise.all([
-        fetchBinanceGlobalPrice(coin),
-        fetchBybitPrice(coin),
-    ]);
-
-    return [binance, bybit].filter((p): p is GlobalPrice => p !== null);
-}
-
-// ==================== LOCAL EXCHANGE PRICES ====================
-
-/**
- * Fetch price from Bitkub
- */
-export async function fetchBitkubPrice(coin: string): Promise<LocalPrice | null> {
+async function fetchAllBinanceGlobalTickers(): Promise<GlobalPrice[]> {
     try {
-        // Handle symbol mapping (e.g. MATIC -> POL)
-        const targetCoin = BITKUB_SYMBOL_MAP[coin] || coin;
-
-        // V3 API uses XXX_THB format (e.g., DOGE_THB)
-        const symbol = `${targetCoin}_THB`;
-        const response = await fetch(`${ENDPOINTS.bitkub.tickerV3}?sym=${symbol}`);
-
-        if (!response.ok) {
-            console.warn(`[ArbitrageAPI] Bitkub: ${symbol} not found`);
-            return null;
-        }
-
+        const response = await fetch(ENDPOINTS.binanceGlobal);
+        if (!response.ok) throw new Error('Binance Global API failed');
         const data = await response.json();
 
-        // V3 returns an array of objects
-        if (!Array.isArray(data) || data.length === 0) {
-            return null;
+        const prices: GlobalPrice[] = [];
+        for (const ticker of data) {
+            const sym = normalizeSymbol(ticker.symbol, 'Global');
+            if (sym) {
+                prices.push({
+                    source: 'Binance',
+                    symbol: sym,
+                    bestBid: parseFloat(ticker.bidPrice),
+                    bestAsk: parseFloat(ticker.askPrice),
+                    timestamp: new Date()
+                });
+            }
         }
-
-        const ticker = data[0];
-
-        return {
-            bestBid: parseFloat(ticker.highest_bid),
-            bestAsk: parseFloat(ticker.lowest_ask),
-            source: 'Bitkub',
-            symbol: coin,
-            timestamp: new Date(),
-        };
-    } catch (error) {
-        console.error(`[ArbitrageAPI] Bitkub error for ${coin}:`, error);
-        return null;
+        return prices;
+    } catch (e) {
+        console.error('Error fetching Binance Global tickers:', e);
+        return [];
     }
 }
 
 /**
- * Fetch price from BinanceTH
+ * Fetch all prices from Bybit
  */
-export async function fetchBinanceTHPrice(coin: string): Promise<LocalPrice | null> {
+async function fetchAllBybitTickers(): Promise<GlobalPrice[]> {
     try {
-        const symbol = `${coin}THB`;
-        const timestamp = new Date().getTime();
-        const response = await fetch(`${ENDPOINTS.binanceTH.depth}?symbol=${symbol}&limit=1&t=${timestamp}`);
-
-        if (!response.ok) {
-            console.warn(`[ArbitrageAPI] BinanceTH: ${symbol} not found`);
-            return null;
-        }
-
+        // Bybit tickers endpoint might not return ALL spots in one go without pagination or proper category
+        // But 'spot' category usually returns most.
+        const response = await fetch(`${ENDPOINTS.bybit}?category=spot`);
+        if (!response.ok) throw new Error('Bybit API failed');
         const data = await response.json();
 
-        if (!data.bids?.length || !data.asks?.length) {
-            return null;
+        if (data.retCode !== 0) throw new Error(data.retMsg);
+
+        const prices: GlobalPrice[] = [];
+        for (const ticker of data.result.list) {
+            const sym = normalizeSymbol(ticker.symbol, 'Global');
+            if (sym) {
+                prices.push({
+                    source: 'Bybit',
+                    symbol: sym,
+                    bestBid: parseFloat(ticker.bid1Price),
+                    bestAsk: parseFloat(ticker.ask1Price),
+                    timestamp: new Date()
+                });
+            }
         }
-
-        return {
-            bestBid: parseFloat(data.bids[0][0]),
-            bestAsk: parseFloat(data.asks[0][0]),
-            source: 'BinanceTH',
-            symbol: coin,
-            timestamp: new Date(),
-        };
-    } catch (error) {
-        console.error(`[ArbitrageAPI] BinanceTH error for ${coin}:`, error);
-        return null;
+        return prices;
+    } catch (e) {
+        console.error('Error fetching Bybit tickers:', e);
+        return [];
     }
-}
-
-/**
- * Fetch all local prices for a coin (Bitkub + BinanceTH)
- */
-export async function fetchAllLocalPrices(coin: string): Promise<LocalPrice[]> {
-    const [bitkub, binanceTH] = await Promise.all([
-        fetchBitkubPrice(coin),
-        fetchBinanceTHPrice(coin),
-    ]);
-
-    return [bitkub, binanceTH].filter((p): p is LocalPrice => p !== null);
 }
 
 // ==================== ARBITRAGE CALCULATIONS ====================
 
-/**
- * Case 1: Buy Global → Sell Local (Profit in THB)
- * Cost1_THB = GlobalAsk_USDT × FX
- * Profit1_THB = LocalBid_THB − Cost1_THB
- * Profit1_% = (Profit1_THB / Cost1_THB) × 100
- */
 function calculateCase1(
     globalPrice: GlobalPrice,
     localPrice: LocalPrice,
@@ -281,10 +292,10 @@ function calculateCase1(
     const profitPercent = (profitTHB / costTHB) * 100;
 
     return {
-        id: `case1-${globalPrice.source}-${localPrice.source}-${localPrice.symbol}`,
+        id: `c1-${globalPrice.source}-${localPrice.source}-${localPrice.symbol}`,
         coin: localPrice.symbol,
         case: 1,
-        caseLabel: 'Best Ask Global → Best Bid Local',
+        caseLabel: 'Buy Global → Sell Local',
         buyFrom: globalPrice.source,
         sellTo: localPrice.source,
         buyPrice: globalPrice.bestAsk,
@@ -299,12 +310,6 @@ function calculateCase1(
     };
 }
 
-/**
- * Case 2: Buy Local → Sell Global (Profit in USDT)
- * Cost2_USDT = LocalAsk_THB / FX
- * Profit2_USDT = GlobalBid_USDT − Cost2_USDT
- * Profit2_% = (Profit2_USDT / Cost2_USDT) × 100
- */
 function calculateCase2(
     localPrice: LocalPrice,
     globalPrice: GlobalPrice,
@@ -315,10 +320,10 @@ function calculateCase2(
     const profitPercent = (profitUSDT / costUSDT) * 100;
 
     return {
-        id: `case2-${localPrice.source}-${globalPrice.source}-${localPrice.symbol}`,
+        id: `c2-${localPrice.source}-${globalPrice.source}-${localPrice.symbol}`,
         coin: localPrice.symbol,
         case: 2,
-        caseLabel: 'Best Ask Local → Best Bid Global',
+        caseLabel: 'Buy Local → Sell Global',
         buyFrom: localPrice.source,
         sellTo: globalPrice.source,
         buyPrice: localPrice.bestAsk,
@@ -333,11 +338,6 @@ function calculateCase2(
     };
 }
 
-/**
- * Case 3: Buy Local → Sell Local (Pingpong) (Profit in THB)
- * Profit3_THB = LocalBid_THB (from sellTo) − LocalAsk_THB (from buyFrom)
- * Profit3_% = (Profit3_THB / LocalAsk_THB) × 100
- */
 function calculateCase3(
     buyFromLocal: LocalPrice,
     sellToLocal: LocalPrice
@@ -346,7 +346,7 @@ function calculateCase3(
     const profitPercent = (profitTHB / buyFromLocal.bestAsk) * 100;
 
     return {
-        id: `case3-${buyFromLocal.source}-${sellToLocal.source}-${buyFromLocal.symbol}`,
+        id: `c3-${buyFromLocal.source}-${sellToLocal.source}-${buyFromLocal.symbol}`,
         coin: buyFromLocal.symbol,
         case: 3,
         caseLabel: 'Local Pingpong',
@@ -354,7 +354,7 @@ function calculateCase3(
         sellTo: sellToLocal.source,
         buyPrice: buyFromLocal.bestAsk,
         sellPrice: sellToLocal.bestBid,
-        fxRate: 0, // Not used for Case 3
+        fxRate: 0,
         profit: profitTHB,
         profitPercent,
         profitUnit: 'THB',
@@ -367,54 +367,84 @@ function calculateCase3(
 // ==================== MAIN AGGREGATOR ====================
 
 /**
- * Fetch all arbitrage opportunities for given coins
+ * Fetch all arbitrage opportunities for all coins (bulk mode)
  */
 export async function fetchAllArbitrageOpportunities(
-    coins: string[] = DEFAULT_COINS
+    // coins argument is officially ignored now as we prefer bulk, 
+    // but kept in signature if needed for backward compatibility or strict filtering later
+    filterCoins?: string[]
 ): Promise<{ opportunities: ArbitrageOpportunity[]; fx: FxData }> {
-    // 1. Fetch FX rate first
-    const fx = await fetchBinanceTHFxMid();
 
-    // 2. Fetch all prices concurrently
-    const pricePromises = coins.map(async (coin) => {
-        const [globalPrices, localPrices] = await Promise.all([
-            fetchAllGlobalPrices(coin),
-            fetchAllLocalPrices(coin),
-        ]);
-        return { coin, globalPrices, localPrices };
-    });
+    // 1. Fetch EVERYTHING concurrently
+    const [fx, bitkubPrices, binanceTHPrices, binanceGlobalPrices, bybitPrices] = await Promise.all([
+        fetchBinanceTHFxMid(),
+        fetchAllBitkubTickers(),
+        fetchAllBinanceTHTickers(),
+        fetchAllBinanceGlobalTickers(),
+        fetchAllBybitTickers()
+    ]);
 
-    const allPrices = await Promise.all(pricePromises);
-
-    // 3. Calculate all opportunities
     const opportunities: ArbitrageOpportunity[] = [];
 
-    for (const { coin, globalPrices, localPrices } of allPrices) {
-        // Case 1: For each global + local combination
-        for (const globalPrice of globalPrices) {
-            for (const localPrice of localPrices) {
-                opportunities.push(calculateCase1(globalPrice, localPrice, fx.mid));
+    // 2. Index prices by symbol for O(1) lookup
+    const localMap: Record<string, LocalPrice[]> = {};
+    const globalMap: Record<string, GlobalPrice[]> = {};
+
+    [...bitkubPrices, ...binanceTHPrices].forEach(p => {
+        if (!localMap[p.symbol]) localMap[p.symbol] = [];
+        localMap[p.symbol].push(p);
+    });
+
+    [...binanceGlobalPrices, ...bybitPrices].forEach(p => {
+        if (!globalMap[p.symbol]) globalMap[p.symbol] = [];
+        globalMap[p.symbol].push(p);
+    });
+
+    // 3. Find Union of all relevant coins (must be present locally to do anything useful with local arb)
+    // Actually, we iterate over 'localMap' keys because we need at least one local side for any arbitrage case involving THB
+    const coins = Object.keys(localMap);
+
+    // console.log(`[Arbitrage] Found ${coins.length} local coins. Sample:`, coins.slice(0, 5));
+
+    for (const coin of coins) {
+        // Optional filtering if provided
+        if (filterCoins && filterCoins.length > 0 && !filterCoins.includes(coin)) continue;
+
+        const locals = localMap[coin] || [];
+        const globals = globalMap[coin] || [];
+
+        // Case 1 & 2: Local <-> Global
+        if (locals.length > 0 && globals.length > 0) {
+            for (const loc of locals) {
+                for (const glob of globals) {
+                    if (loc.bestBid > 0 && glob.bestAsk > 0) {
+                        opportunities.push(calculateCase1(glob, loc, fx.mid));
+                    }
+                    if (loc.bestAsk > 0 && glob.bestBid > 0) {
+                        opportunities.push(calculateCase2(loc, glob, fx.mid));
+                    }
+                }
             }
         }
 
-        // Case 2: For each local + global combination
-        for (const localPrice of localPrices) {
-            for (const globalPrice of globalPrices) {
-                opportunities.push(calculateCase2(localPrice, globalPrice, fx.mid));
-            }
-        }
-
-        // Case 3: For each local + local combination (excluding same source)
-        for (let i = 0; i < localPrices.length; i++) {
-            for (let j = 0; j < localPrices.length; j++) {
-                if (i !== j) {
-                    opportunities.push(calculateCase3(localPrices[i], localPrices[j]));
+        // Case 3: Local <-> Local
+        if (locals.length >= 2) {
+            for (let i = 0; i < locals.length; i++) {
+                for (let j = 0; j < locals.length; j++) {
+                    if (i !== j) {
+                        const buy = locals[i];
+                        const sell = locals[j];
+                        // prevent self-trade (same source) - though logic handles different sources
+                        if (buy.source !== sell.source && buy.bestAsk > 0 && sell.bestBid > 0) {
+                            opportunities.push(calculateCase3(buy, sell));
+                        }
+                    }
                 }
             }
         }
     }
 
-    // 4. Sort by profit percentage (descending)
+    // 4. Sort by profit high-to-low
     opportunities.sort((a, b) => b.profitPercent - a.profitPercent);
 
     return { opportunities, fx };
@@ -433,26 +463,20 @@ export function getBestOpportunities(opportunities: ArbitrageOpportunity[]): {
     const case3 = opportunities.filter(o => o.case === 3);
 
     return {
-        case1: case1.length > 0 ? case1.reduce((a, b) => a.profitPercent > b.profitPercent ? a : b) : null,
-        case2: case2.length > 0 ? case2.reduce((a, b) => a.profitPercent > b.profitPercent ? a : b) : null,
-        case3: case3.length > 0 ? case3.reduce((a, b) => a.profitPercent > b.profitPercent ? a : b) : null,
+        case1: case1.length > 0 ? case1[0] : null, // Already sorted
+        case2: case2.length > 0 ? case2[0] : null,
+        case3: case3.length > 0 ? case3[0] : null,
     };
 }
 
 // ==================== UTILITY FUNCTIONS ====================
 
-/**
- * Format profit for display
- */
 export function formatProfit(profit: number, unit: 'THB' | 'USDT', decimals = 2): string {
     const sign = profit >= 0 ? '+' : '';
     const formatted = profit.toFixed(decimals);
     return `${sign}${formatted} ${unit}`;
 }
 
-/**
- * Format percentage for display
- */
 export function formatPercent(percent: number, decimals = 2): string {
     const sign = percent >= 0 ? '+' : '';
     return `${sign}${percent.toFixed(decimals)}%`;
@@ -465,9 +489,6 @@ export function isGoodOpportunity(opportunity: ArbitrageOpportunity, threshold =
     return opportunity.profitPercent >= threshold;
 }
 
-/**
- * Update data age for opportunities
- */
 export function updateDataAge(opportunities: ArbitrageOpportunity[]): ArbitrageOpportunity[] {
     const now = new Date();
     return opportunities.map(opp => ({
