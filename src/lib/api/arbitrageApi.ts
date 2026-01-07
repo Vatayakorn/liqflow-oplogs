@@ -70,6 +70,13 @@ const ENDPOINTS = {
     },
 };
 
+// ==================== SYMBOL MAPPING ====================
+
+// Map standard symbols to Bitkub specific symbols if they differ
+const BITKUB_SYMBOL_MAP: Record<string, string> = {
+    'MATIC': 'POL', // Polygon migrated to POL on Bitkub
+};
+
 // ==================== FX RATE ====================
 
 /**
@@ -177,8 +184,11 @@ export async function fetchAllGlobalPrices(coin: string): Promise<GlobalPrice[]>
  */
 export async function fetchBitkubPrice(coin: string): Promise<LocalPrice | null> {
     try {
+        // Handle symbol mapping (e.g. MATIC -> POL)
+        const targetCoin = BITKUB_SYMBOL_MAP[coin] || coin;
+
         // V3 API uses XXX_THB format (e.g., DOGE_THB)
-        const symbol = `${coin}_THB`;
+        const symbol = `${targetCoin}_THB`;
         const response = await fetch(`${ENDPOINTS.bitkub.tickerV3}?sym=${symbol}`);
 
         if (!response.ok) {
