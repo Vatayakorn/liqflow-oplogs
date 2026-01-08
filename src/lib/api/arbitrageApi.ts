@@ -75,6 +75,7 @@ const BITKUB_OVERRIDES: Record<string, string> = {
     'LUNA': 'LUNC',  // Bitkub LUNA is actually Terra Classic (LUNC)
     'LUNA2': 'LUNA', // Bitkub LUNA2 is actually Terra 2.0 (LUNA)
     'GALA1': 'GALA',
+    'VELO': 'VELODROME', // Bitkub VELO is actually Velodrome
 };
 
 const SYMBOL_ALIASES: Record<string, string> = {
