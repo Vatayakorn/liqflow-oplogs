@@ -7,16 +7,18 @@
     let isSaving = false;
     let sessionFormRef: SessionForm;
 
+    // Date for the session (default: today)
+    let logDate = new Date().toISOString().split("T")[0];
+    const today = new Date().toISOString().split("T")[0];
+
     async function handleFormSubmit(event: CustomEvent) {
         const formData = event.detail;
         isSaving = true;
 
-        const logDate = new Date().toISOString().split("T")[0];
-
         try {
             const { images, audio, ...sessionData } = formData;
             const session = await createSession({
-                log_date: logDate,
+                log_date: logDate, // Use selected date
                 ...sessionData,
             });
 
@@ -77,10 +79,36 @@
         <!-- Balance the header -->
     </header>
 
+    <!-- Date Selector -->
+    <div class="date-selector">
+        <label for="logDate">
+            <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke-width="1.5"
+                stroke="currentColor"
+                class="icon"
+            >
+                <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"
+                />
+            </svg>
+            Recording Date:
+        </label>
+        <input type="date" id="logDate" bind:value={logDate} max={today} />
+        {#if logDate !== today}
+            <span class="backdate-badge">📅 Backdating</span>
+        {/if}
+    </div>
+
     <main class="content">
         <SessionForm
             bind:this={sessionFormRef}
             disabled={isSaving}
+            {logDate}
             on:submit={handleFormSubmit}
         />
     </main>
@@ -143,5 +171,46 @@
         max-width: 800px;
         margin: 0 auto;
         width: 100%;
+    }
+
+    .date-selector {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem 1rem;
+        background: #fff;
+        border-bottom: 0.5px solid var(--color-separator);
+    }
+
+    .date-selector label {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.9rem;
+        font-weight: 500;
+        color: var(--color-text-secondary, #666);
+    }
+
+    .date-selector .icon {
+        width: 1rem;
+        height: 1rem;
+    }
+
+    .date-selector input[type="date"] {
+        padding: 0.5rem 0.75rem;
+        border: 1px solid var(--color-separator, #ddd);
+        border-radius: 8px;
+        font-size: 0.95rem;
+        background: #fff;
+        color: var(--color-text);
+    }
+
+    .backdate-badge {
+        padding: 0.25rem 0.5rem;
+        background: #fff3cd;
+        color: #856404;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 500;
     }
 </style>

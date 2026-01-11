@@ -43,12 +43,16 @@
         calculatePriceDiff,
         type OrderBook,
     } from "$lib/api/marketData";
-    import { fetchTodayOtcTransactions } from "$lib/api/otcApi";
+    import {
+        fetchTodayOtcTransactions,
+        fetchOtcTransactionsByDate,
+    } from "$lib/api/otcApi";
     import { toast } from "$lib/stores/toast";
     import { fetchLatestMarketPrices } from "$lib/api/autoSave";
 
     export let disabled = false;
     export let initialData: any = null;
+    export let logDate: string = new Date().toISOString().split("T")[0]; // Default to today
 
     const dispatch = createEventDispatcher();
 
@@ -1298,22 +1302,27 @@
         images = event.detail;
     }
 
-    // Fetch OTC transactions from API (midnight to now)
+    // Fetch OTC transactions from API for the specified logDate
     async function fetchOtcTransactions() {
         isFetchingOtc = true;
         try {
-            const transactions = await fetchTodayOtcTransactions();
+            const today = new Date().toISOString().split("T")[0];
+            // Use appropriate fetch function based on date
+            const transactions =
+                logDate === today
+                    ? await fetchTodayOtcTransactions()
+                    : await fetchOtcTransactionsByDate(logDate);
             fetchedOtcTransactions = transactions;
-            console.log("Fetched transactions:", transactions);
+            console.log(
+                `Fetched ${transactions.length} transactions for ${logDate}`,
+            );
             if (transactions.length === 0) {
-                alert(
-                    "No data today (0 items) - Please check API Configuration in Console (F12)",
-                );
+                toast.info(`No OTC transactions found for ${logDate}`);
             }
         } catch (error) {
             console.error("Failed to fetch OTC transactions:", error);
-            alert(
-                `An error occurred: ${error instanceof Error ? error.message : error}`,
+            toast.error(
+                `Failed to fetch OTC: ${error instanceof Error ? error.message : error}`,
             );
         } finally {
             isFetchingOtc = false;
