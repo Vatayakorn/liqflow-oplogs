@@ -9,6 +9,7 @@
         bitkubLive,
         binanceTHLive,
         maxbitLive,
+        bitazzaLive,
         fxLive,
         isConnected,
         lastUpdate,
@@ -989,6 +990,66 @@
         exchange2Ask = $binanceTHLive.bestAsk.toFixed(2);
         updateExchangeDiff();
         exchangeFetchTime = getCurrentTimeStr();
+    }
+
+    // Track last saved timestamps to avoid duplicate saves
+    let lastBitazzaUsdtTimestamp: string | null = null;
+    let lastBitazzaUsdcTimestamp: string | null = null;
+
+    $: if ($bitazzaLive && effectivePriceMode === "live") {
+        const timestamp = new Date().toISOString();
+
+        // USDT: Update UI and auto-save to history
+        if ($bitazzaLive.USDT) {
+            const newBid = $bitazzaLive.USDT.bid.toFixed(3);
+            const newAsk = $bitazzaLive.USDT.ask.toFixed(3);
+            const usdtTs =
+                $bitazzaLive.USDT.timestamp?.toISOString() || timestamp;
+
+            // Only save if this is a new price (different timestamp)
+            if (usdtTs !== lastBitazzaUsdtTimestamp) {
+                bitazzaBid = newBid;
+                bitazzaAsk = newAsk;
+
+                // Auto-save to Price History
+                const entry: MaxbitPriceEntry = {
+                    id: crypto.randomUUID(),
+                    bid: newBid,
+                    ask: newAsk,
+                    note: "[Auto][USDT]",
+                    timestamp: usdtTs,
+                };
+                bitazzaPrices = [...bitazzaPrices, entry];
+                lastBitazzaUsdtTimestamp = usdtTs;
+            }
+        }
+
+        // USDC: Update UI and auto-save to history
+        if ($bitazzaLive.USDC) {
+            const newBid = $bitazzaLive.USDC.bid.toFixed(3);
+            const newAsk = $bitazzaLive.USDC.ask.toFixed(3);
+            const usdcTs =
+                $bitazzaLive.USDC.timestamp?.toISOString() || timestamp;
+
+            // Only save if this is a new price (different timestamp)
+            if (usdcTs !== lastBitazzaUsdcTimestamp) {
+                bitazzaUsdcBid = newBid;
+                bitazzaUsdcAsk = newAsk;
+
+                // Auto-save to Price History
+                const entry: MaxbitPriceEntry = {
+                    id: crypto.randomUUID(),
+                    bid: newBid,
+                    ask: newAsk,
+                    note: "[Auto][USDC]",
+                    timestamp: usdcTs,
+                };
+                bitazzaPrices = [...bitazzaPrices, entry];
+                lastBitazzaUsdcTimestamp = usdcTs;
+            }
+        }
+
+        brokerFetchTime = getCurrentTimeStr();
     }
 
     function updateExchangeDiff() {

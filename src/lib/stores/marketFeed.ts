@@ -13,6 +13,10 @@ interface MarketFeedState {
     bitkub: OrderBook | null;
     binanceTH: OrderBook | null;
     maxbit: BrokerPrice | null;
+    bitazza: {
+        USDT: BrokerPrice | null;
+        USDC: BrokerPrice | null;
+    };
     fx: FxRate | null;
     isConnected: boolean;
     lastUpdate: Date | null;
@@ -23,6 +27,10 @@ const initialState: MarketFeedState = {
     bitkub: null,
     binanceTH: null,
     maxbit: null,
+    bitazza: {
+        USDT: null,
+        USDC: null
+    },
     fx: null,
     isConnected: false,
     lastUpdate: null
@@ -63,11 +71,11 @@ function parseOrderBook(data: any, source: string): OrderBook | null {
 /**
  * Parse broker price from database format
  */
-function parseBrokerPrice(data: any): BrokerPrice {
+function parseBrokerPrice(data: any, customSource?: string): BrokerPrice {
     return {
         bid: Number(data.bid),
         ask: Number(data.ask),
-        source: 'BTZ (Live)',
+        source: customSource || 'BTZ (Live)',
         timestamp: new Date(data.created_at)
     };
 }
@@ -136,6 +144,14 @@ function connect(): void {
                             newState.maxbit = parseBrokerPrice(data);
                             break;
 
+                        case 'bitazza':
+                            if (data.symbol === 'USDT') {
+                                newState.bitazza.USDT = parseBrokerPrice(data, 'Bitazza USDT');
+                            } else if (data.symbol === 'USDC') {
+                                newState.bitazza.USDC = parseBrokerPrice(data, 'Bitazza USDC');
+                            }
+                            break;
+
                         case 'fx':
                             newState.fx = parseFxRate(data);
                             break;
@@ -183,6 +199,7 @@ function reset(): void {
 export const bitkubLive = derived({ subscribe }, $feed => $feed.bitkub);
 export const binanceTHLive = derived({ subscribe }, $feed => $feed.binanceTH);
 export const maxbitLive = derived({ subscribe }, $feed => $feed.maxbit);
+export const bitazzaLive = derived({ subscribe }, $feed => $feed.bitazza);
 export const fxLive = derived({ subscribe }, $feed => $feed.fx);
 export const isConnected = derived({ subscribe }, $feed => $feed.isConnected);
 export const lastUpdate = derived({ subscribe }, $feed => $feed.lastUpdate);
